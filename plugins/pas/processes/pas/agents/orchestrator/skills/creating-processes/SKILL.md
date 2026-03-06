@@ -7,6 +7,14 @@ description: Use when creating a new PAS process from a user's goal description.
 
 Create a complete process definition from a user's goal. A process defines WHAT needs to happen, in WHAT ORDER, to achieve a specific GOAL. It assigns work to agents, defines phase gates, and manages flow.
 
+## Execution Framing
+
+This skill IS the execution framework. When generating plans for process creation:
+
+- Do NOT produce a standalone task list. Every step is a step within THIS skill's workflow.
+- If you are in plan mode, exit plan mode first — this skill requires interactive brainstorming with the user via AskUserQuestion, which plan mode prevents.
+- If a step requires work not covered by this skill, flag it as a PAS gap rather than a standalone manual step.
+
 ## Workflow
 
 ### 1. Clarify the Goal
@@ -18,7 +26,22 @@ Apply the crystal clarity principle. Never assume you understand what the user w
 - Continue until you can state the goal back in a single sentence the user confirms
 - If the goal maps to an existing process, suggest modifying it instead of creating new
 
-### 2. Design Phases
+### 2. Prepare Reference Material (if applicable)
+
+If the process requires domain knowledge from raw source material (transcripts, documentation, course content):
+
+1. Create `processes/{name}/reference/` directory
+2. Store the original source material in `reference/source/` — this is the authoritative knowledge base
+3. Analyze the source material to determine the best reference format:
+   - If already well-structured: use directly, no distillation needed
+   - If raw/unstructured (e.g., transcripts): distill into a structured methodology doc alongside the source
+   - Match the format and depth to the material — do not impose arbitrary length limits
+4. Any distilled reference supplements the source material — it does not replace it
+5. Skills must trace techniques back to the source. When a reference doc is insufficient, agents consult the original source material directly.
+
+Skip this step if the process is based on general knowledge or user-provided specifications.
+
+### 3. Design Phases
 
 Break the goal into sequential phases. For each phase define:
 
@@ -28,7 +51,7 @@ Break the goal into sequential phases. For each phase define:
 
 **Parallelism**: infer from I/O dependencies. Phases sharing the same input but not depending on each other can run in parallel. Phases listing another phase's output as input must wait. No explicit `depends_on` needed. Optional `sequential: true` at process level to force linear.
 
-### 3. Determine Agents
+### 4. Determine Agents
 
 Start with the minimum viable set. Every process needs an orchestrator. Add specialist agents only when:
 
@@ -38,7 +61,7 @@ Start with the minimum viable set. Every process needs an orchestrator. Add spec
 
 For simple processes (1-3 phases, similar skills), the orchestrator handles everything (solo pattern).
 
-### 4. Select Orchestration Pattern
+### 5. Select Orchestration Pattern
 
 Read the orchestration decision matrix. If `library/orchestration/SKILL.md` doesn't exist in the user's project yet, bootstrap it by copying from the PAS plugin's library (the `library/` directory next to `processes/` in the plugin). Then apply the decision matrix:
 
@@ -51,7 +74,7 @@ Read the orchestration decision matrix. If `library/orchestration/SKILL.md` does
 
 Default to hub-and-spoke when unsure.
 
-### 5. Scaffold Process Directory
+### 6. Scaffold Process Directory
 
 Create the directory structure:
 
@@ -73,7 +96,7 @@ processes/{name}/
   changelog.md
 ```
 
-### 6. Write process.md
+### 7. Write process.md
 
 Use this exact YAML frontmatter format:
 
@@ -108,15 +131,26 @@ status_file: workspace/{name}/{slug}/status.yaml
 {Prose description of each phase, what it does, and how it contributes to the goal.}
 ```
 
-### 7. Create Agents
+### 8. Create Agents
 
-For each agent determined in step 3, invoke the creating-agents skill:
+For each agent determined in step 4, invoke the creating-agents skill:
 
 - Read `creating-agents/SKILL.md` from the same skills directory as this skill
 - Follow its workflow for each agent
 - The orchestrator agent is always created first
 
-### 8. Create Mode Files
+### 9. Verify Against Source Material
+
+If Step 2 (Prepare Reference Material) was used, cross-check every created skill against the reference doc:
+
+1. For each skill, list every technique, tactic, metric, and number it contains
+2. Verify each one exists in the reference material — flag any that don't as potential fabrication
+3. Check each section of the reference doc is covered by at least one skill — flag uncovered sections as omissions
+4. Remove fabricated content. Add skills or skill sections for omissions.
+
+This is a mandatory step when source material exists. Do not skip it.
+
+### 10. Create Mode Files
 
 Create `modes/supervised.md` and `modes/autonomous.md`:
 
@@ -145,7 +179,7 @@ At each gate:
 
 **Autonomous mode:** Same structure, but `gates: advisory`. Log gate results but do not pause. Self-review at each gate point. Flag critical issues even in autonomous mode.
 
-### 9. Create Thin Launcher
+### 11. Create Thin Launcher
 
 Create `.claude/skills/{name}/SKILL.md`:
 
@@ -160,7 +194,7 @@ Read the orchestration pattern from `library/orchestration/` as specified in the
 Execute.
 ```
 
-### 10. Create Integration Test
+### 12. Create Integration Test
 
 Create a test scenario in `processes/{name}/evals/` that verifies:
 
