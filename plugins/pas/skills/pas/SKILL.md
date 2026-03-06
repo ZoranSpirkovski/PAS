@@ -25,7 +25,12 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 
 ## First-Run Detection
 
-If `pas-config.yaml` does not exist at the project root, create it with defaults: `feedback: enabled`, `feedback_disabled_at: ~`
+If `pas-config.yaml` does not exist at the project root, run self-setup:
+
+1. Create `pas-config.yaml` with defaults: `feedback: enabled`, `feedback_disabled_at: ~`
+2. Create `library/` with core skills by copying from the PAS plugin's library: `self-evaluation/`, `message-routing/`, `orchestration/`
+3. Create `workspace/` directory
+4. Confirm to the user: "PAS initialized — library, workspace, and config are ready."
 
 ## Frustration Detection
 
@@ -33,4 +38,8 @@ If `pas-config.yaml` shows `feedback: disabled` and the user expresses frustrati
 
 ## Library Bootstrap
 
-When creating a new process that references library skills, copy the needed library files from `${CLAUDE_SKILL_DIR}/../../library/` to the user's project `library/` directory if they don't already exist there. This makes the user's project self-contained.
+First-Run Detection handles initial library setup. When creating a new process that references library skills not yet in the user's project `library/`, copy them from `${CLAUDE_SKILL_DIR}/../../library/`. This makes the user's project self-contained.
+
+## Framework Feedback
+
+Feedback about the PAS framework itself (not a specific process) should be filed as a GitHub issue on https://github.com/ZoranSpirkovski/PAS. Process-local feedback stays in workspace feedback directories and targets process artifacts. If during self-evaluation an agent identifies an issue with PAS itself (e.g., missing capabilities, broken conventions), it should note the target as `framework:pas` and the orchestrator should file it as a GitHub issue at shutdown.

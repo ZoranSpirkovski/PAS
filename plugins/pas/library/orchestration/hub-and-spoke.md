@@ -27,10 +27,20 @@ Use TeamCreate for each specialist agent. The spawn prompt tells them:
 - Where to find their skills: "Read your skills from the `skills/` directory listed in your agent.md"
 - Where to write output: "Write output to `workspace/{process}/{slug}/{output-folder}/`"
 - Feedback status: whether self-evaluation is active
+- Self-evaluation instructions: "Before returning your final result, if feedback is enabled in `pas-config.yaml`, read `library/self-evaluation/SKILL.md` and write feedback to `workspace/{process}/{slug}/feedback/{your-name}.md`"
 
 Team members persist for the full process lifecycle. They retain work context for richer self-evaluation and can receive downstream feedback from later phases. Idle agents cost zero tokens.
 
 Team members CAN spawn their own ephemeral subagents via the Agent tool for parallelizable subtasks.
+
+## Agent Communication
+
+Team members spawned via TeamCreate are persistent for the process lifecycle:
+- **To communicate with team members**: use `SendMessage` (not Agent tool resume)
+- **To request team member shutdown**: use `SendMessage` with shutdown instructions
+- **Agent tool resume**: only for ephemeral subagents spawned via the `Agent` tool
+
+Using the wrong mechanism will fail silently (e.g., "No transcript found").
 
 ## Parallelism Inference
 
@@ -128,9 +138,10 @@ When all phases are complete:
 
 1. **Complete all phases** and verify all output files exist
 2. **Send downstream feedback** to each team member: share relevant quality notes from later phases (e.g., tell researcher what the journalist struggled with)
-3. **Each agent writes self-evaluation** using `library/self-evaluation/SKILL.md` (when feedback is enabled). Agents have full work context at this point, making evaluations rich and specific. Output to `workspace/{process}/{slug}/feedback/{agent-name}.md`
+3. **Each agent writes self-evaluation** using `library/self-evaluation/SKILL.md` (when feedback is enabled). This is mandatory — do NOT proceed to step 4 until all agents have written their feedback. Self-evaluation instructions must be included in every agent spawn prompt (see Spawning Team Members above). Agents have full work context at this point, making evaluations rich and specific. Output to `workspace/{process}/{slug}/feedback/{agent-name}.md`
 4. **All agents shut down together** after self-evaluation completes
-5. **Orchestrator finalizes status.yaml**: mark process as `completed`, record final timestamps and quality scores
+5. **Verify all feedback signals** have been routed to their destinations (GitHub issues, artifact backlogs, etc.) before declaring session complete
+6. **Orchestrator finalizes status.yaml**: mark process as `completed`, record final timestamps and quality scores
 
 ## Resumability
 

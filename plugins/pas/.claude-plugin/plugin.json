@@ -7,5 +7,6 @@
   },
   "homepage": "https://github.com/ZoranSpirkovski/PAS",
   "repository": "https://github.com/ZoranSpirkovski/PAS",
-  "license": "MIT"
+  "license": "MIT",
+  "hooks": "hooks/hooks.json"
 }

@@ -41,6 +41,7 @@ Same format as hub-and-spoke. The `agent` field for every phase is `orchestrator
 
 ## Shutdown
 
-1. All phases complete
-2. Orchestrator writes self-evaluation (if feedback enabled)
-3. Finalize status.yaml
+1. All phases complete — verify all output files exist
+2. **Mandatory self-evaluation checkpoint**: If feedback is enabled in `pas-config.yaml`, read `library/self-evaluation/SKILL.md` and write feedback to `workspace/{process}/{slug}/feedback/orchestrator.md`. Do NOT skip this step. Do NOT declare the session complete until self-evaluation is written.
+3. Verify all feedback signals have been routed to their destinations (GitHub issues, artifact backlogs, etc.) before declaring session complete
+4. Finalize status.yaml
