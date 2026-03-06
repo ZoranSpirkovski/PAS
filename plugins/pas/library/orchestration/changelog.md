@@ -9,3 +9,4 @@ Changes:
 - hub-and-spoke.md: Added self-eval instructions to spawn prompt template
 - hub-and-spoke.md: Added Agent Communication section (SendMessage for team members, Agent resume for ephemeral subagents)
 - hub-and-spoke.md: Made self-eval mandatory before proceeding to agent shutdown, added feedback routing verification step
+- hub-and-spoke.md: Added Intra-Phase Parallel Dispatch section — absorbs parallel agent dispatch pattern with PAS lifecycle enforcement (verified paths, shutdown protocol, mandatory feedback for all agents including ephemeral ones)
