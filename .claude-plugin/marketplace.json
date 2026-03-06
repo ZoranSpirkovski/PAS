@@ -1,0 +1,24 @@
+{
+  "name": "pas-framework",
+  "owner": {
+    "name": "Zoran Spirkovski"
+  },
+  "metadata": {
+    "description": "PAS (Process, Agent, Skill) framework for building agentic workflows",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "pas",
+      "source": "./plugins/pas",
+      "description": "Framework for building agentic workflows with composable processes, agents, and skills. Provides /pas command to create and manage automated pipelines.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Zoran Spirkovski"
+      },
+      "license": "MIT",
+      "keywords": ["framework", "agents", "skills", "processes", "workflow", "automation"],
+      "category": "productivity"
+    }
+  ]
+}

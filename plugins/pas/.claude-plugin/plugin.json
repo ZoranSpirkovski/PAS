@@ -1,0 +1,11 @@
+{
+  "name": "pas",
+  "description": "Process-Agent-Skill framework for building agentic workflows. Create automated pipelines with composable processes, agents, and skills that improve through feedback.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Zoran Spirkovski"
+  },
+  "homepage": "https://github.com/ZoranSpirkovski/PAS",
+  "repository": "https://github.com/ZoranSpirkovski/PAS",
+  "license": "MIT"
+}
