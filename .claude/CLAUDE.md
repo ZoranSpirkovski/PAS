@@ -1,12 +1,24 @@
-# PAS Framework
+# PAS Framework — Development Branch
 
-This is the canonical development repository for PAS (Process-Agent-Skill). All development happens here, users install from here, and this is the single source of truth for the framework. PAS is distributed as a Claude Code plugin.
+This is the development workspace for PAS (Process-Agent-Skill). The plugin source lives alongside the pas-development process, plans, workspace, and feedback.
+
+## Branch Structure
+
+- `main` — Plugin distribution (clean, release-only)
+- `dev` — Development workspace (this branch)
+
+Development happens here. Plugin changes get PR'd to `main`. `main` never merges from `dev`.
 
 ## Repo Layout
 
 - `plugins/pas/` — The PAS plugin (skills, hooks, library, processes)
-- `.claude-plugin/marketplace.json` — Marketplace catalog for plugin distribution
-- `.claude/` — Repo-level Claude Code configuration
+- `processes/pas-development/` — The PAS development process (7 agents, 4 phases)
+- `library/` — Bootstrapped library (copied from plugin for local use)
+- `workspace/` — Session workspaces (status tracking, feedback)
+- `docs/plans/` — Design docs and implementation plans
+- `.claude/skills/pas-development/` — Thin launcher for the dev process
+- `pas-config.yaml` — Local PAS configuration
+- `.claude-plugin/marketplace.json` — Marketplace catalog
 
 ## Plugin Structure
 
@@ -22,3 +34,5 @@ This is the canonical development repository for PAS (Process-Agent-Skill). All 
 - Skills follow Agent Skills spec (SKILL.md format with YAML frontmatter + progressive disclosure markdown)
 - Agents are always process-local (no shared agents across processes)
 - Skills are local-first; only graduate to `library/` when reused in 2+ places
+- PAS framework feedback always goes to a GitHub issue — no exceptions
+- pas-development process feedback stays local in `processes/pas-development/feedback/backlog/`
