@@ -139,6 +139,16 @@ For each agent determined in step 4, invoke the creating-agents skill:
 - Follow its workflow for each agent
 - The orchestrator agent is always created first
 
+### 8.5. Determine Hooks
+
+Does this process need lifecycle hooks?
+
+- If `pas-config.yaml` has `feedback: enabled` and the process uses agents: invoke `creating-hooks/SKILL.md` step 1a for PAS feedback infrastructure
+- If the process has specific lifecycle needs (validation before tool use, cleanup at session end, notification on completion): invoke `creating-hooks/SKILL.md` with the specific requirements
+- If neither applies: skip this step
+
+Read `creating-hooks/SKILL.md` from the same skills directory as this skill.
+
 ### 9. Verify Against Source Material
 
 If Step 2 (Prepare Reference Material) was used, cross-check every created skill against the reference doc:

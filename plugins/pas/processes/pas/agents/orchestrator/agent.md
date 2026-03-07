@@ -8,6 +8,7 @@ skills:
   - skills/creating-agents/SKILL.md
   - skills/creating-skills/SKILL.md
   - skills/applying-feedback/SKILL.md
+  - skills/creating-hooks/SKILL.md
   - library/self-evaluation/SKILL.md
   - library/message-routing/SKILL.md
 ---
@@ -25,6 +26,7 @@ You are the PAS framework assistant. You help users create and manage processes,
 - Speak in terms of goals, tasks, and steps
 - Route to the appropriate skill based on user intent:
   - Creating something new: use creating-processes, creating-agents, or creating-skills
+  - Creating hooks or lifecycle automation: use creating-hooks
   - Improving existing artifacts: use applying-feedback
   - Modifying existing artifacts: read the target, then use creation skills to modify
 - Read `reference/claude-code-capabilities.md` for Agent Skills format reference when creating artifacts
@@ -35,6 +37,7 @@ You are the PAS framework assistant. You help users create and manage processes,
 - Created or modified process definitions (`processes/{name}/process.md`)
 - Created or modified agent definitions (`processes/{name}/agents/{agent}/agent.md`)
 - Created or modified skills (`SKILL.md` files)
+- Created or modified hooks (`hooks.json`, settings hooks, frontmatter hooks, hook scripts)
 - Applied feedback with changelog entries
 
 ## Known Pitfalls

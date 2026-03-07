@@ -1,22 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# SubagentStop safety net
-# Checks if agent wrote self-eval to workspace feedback inbox.
-# If missing: log warning. If present or no workspace context: exit 0.
-# No LLM calls, pure file operations.
+# SubagentStop safety net — checks if agent wrote self-eval.
+# Enhanced: uses agent_id for identification, agent_transcript_path
+# for secondary detection, sort-by-mtime instead of -newer.
 
-# Read hook event JSON from stdin
 INPUT=$(cat)
 
-# Extract working directory
-CWD=$(echo "$INPUT" | grep -o '"cwd"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+CWD=$(echo "$INPUT" | jq -r '.cwd')
+AGENT_ID=$(echo "$INPUT" | jq -r '.agent_id // "unknown"')
+AGENT_TRANSCRIPT=$(echo "$INPUT" | jq -r '.agent_transcript_path // empty')
 
-if [ -z "$CWD" ]; then
-  exit 0
-fi
-
-# Check if feedback is enabled
+# Guard: only run in PAS repos with feedback enabled
 PAS_CONFIG="$CWD/pas-config.yaml"
 if [ ! -f "$PAS_CONFIG" ]; then
   exit 0
@@ -27,15 +22,16 @@ if [ "$FEEDBACK_STATUS" != "enabled" ]; then
   exit 0
 fi
 
-# Find workspace feedback directories (look for active workspaces)
-# We check workspace/ for any directory containing a status.yaml with status: in_progress
+# Find active workspace (sort-by-mtime approach)
 WORKSPACE_DIR="$CWD/workspace"
 if [ ! -d "$WORKSPACE_DIR" ]; then
   exit 0
 fi
 
-# Find the most recently modified status.yaml that shows in_progress
-ACTIVE_STATUS=$(find "$WORKSPACE_DIR" -name "status.yaml" -newer "$WORKSPACE_DIR" -print 2>/dev/null | head -1)
+ACTIVE_STATUS=$(find "$WORKSPACE_DIR" -name "status.yaml" -print 2>/dev/null | while read -r f; do
+  echo "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null || echo 0) $f"
+done | sort -rn | head -1 | awk '{print $2}')
+
 if [ -z "$ACTIVE_STATUS" ]; then
   exit 0
 fi
@@ -47,14 +43,24 @@ if [ ! -d "$FEEDBACK_DIR" ]; then
   exit 0
 fi
 
-# Count feedback files (excluding .gitkeep)
+# Primary check: feedback .md files in workspace
 FEEDBACK_COUNT=$(find "$FEEDBACK_DIR" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l)
 
-if [ "$FEEDBACK_COUNT" -eq 0 ]; then
-  # No self-eval files found, log warning
-  WARNINGS_DIR="$CWD/feedback"
-  mkdir -p "$WARNINGS_DIR"
-  echo "[$(date -Iseconds)] WARNING: Agent shutdown without writing self-eval to $FEEDBACK_DIR" >> "$WARNINGS_DIR/warnings.log"
+if [ "$FEEDBACK_COUNT" -gt 0 ]; then
+  exit 0  # Self-eval found
 fi
+
+# Secondary check (P1): scan transcript for inline signal patterns
+if [ -n "$AGENT_TRANSCRIPT" ] && [ -f "$AGENT_TRANSCRIPT" ]; then
+  SIGNAL_COUNT=$(grep -cE '\[(PPU|OQI|GATE|STA)-[0-9]+\]' "$AGENT_TRANSCRIPT" 2>/dev/null || echo 0)
+  if [ "$SIGNAL_COUNT" -gt 0 ]; then
+    exit 0  # Found inline signals — agent did self-eval in conversation
+  fi
+fi
+
+# No self-eval found — log warning with agent_id
+WARNINGS_DIR="$CWD/feedback"
+mkdir -p "$WARNINGS_DIR"
+echo "[$(date -Iseconds)] WARNING: Agent '$AGENT_ID' shutdown without writing self-eval to $FEEDBACK_DIR" >> "$WARNINGS_DIR/warnings.log"
 
 exit 0
