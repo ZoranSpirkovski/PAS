@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.3.0 — 2026-03-07
+
+Feedback system fix. Addresses 7 failures documented in [Issue #6](https://github.com/ZoranSpirkovski/PAS/issues/6) where two consecutive sessions completed without producing any feedback.
+
+### Orchestration Patterns (Critical)
+
+- **Mandatory workspace creation**: All 4 orchestration patterns (hub-and-spoke, solo, discussion, sequential-agents) now use imperative "Create workspace" as a HARD REQUIREMENT instead of passive "Check for existing workspace"
+- **Orchestrator self-evaluation**: Orchestrator writes its own self-eval at shutdown (previously only team members did)
+- **COMPLETION GATE**: All 4 patterns now have a blocking completion gate with 4 conditions that must be true before declaring session complete
+- **Discussion/sequential-agents startup**: These patterns now have explicit startup sequences (previously deferred to hub-and-spoke or were missing entirely)
+- **Framework signal routing**: Shutdown sequences now include explicit step to file `framework:pas` signals as GitHub issues
+
+### Hook and Script Fixes
+
+- **route-feedback.sh**: Added `plugins/` fallback search for process, agent, and skill targets. Added `framework)` case. Fixes path resolution failures when targeting plugin-owned artifacts.
+- **creating-processes**: Restored step 8 "Determine Hooks" that was lost during generation scripts refactor
+- **Generation scripts**: All 3 scripts (pas-create-process, pas-create-agent, pas-create-skill) now support `--base-dir` flag for safe test isolation
+
+### Self-Evaluation
+
+- **Framework feedback routing**: New section in self-evaluation skill documenting the `framework:pas` target, `Route: github-issue` marker, and the agent-to-orchestrator routing chain
+- **PAS entry point**: Framework feedback section strengthened with non-negotiable enforcement chain (self-eval flags it, shutdown routes it, completion gate blocks without it)
+
+### Feedback Enforcement
+
+- **`pas-session-start.sh`** (new SessionStart hook): Injects PAS lifecycle context at session start — workspace creation requirements, task creation requirements, shutdown sequence. Also reports active workspace status for session resumption.
+- **`verify-completion-gate.sh`** (new Stop hook): Blocks Claude from stopping (exit 2) when all phases are completed but `feedback/orchestrator.md` is missing. Includes `stop_hook_active` loop prevention.
+- **`verify-task-completion.sh`** (new TaskCompleted hook): Blocks `[PAS]`-prefixed tasks from completing until deliverables exist on disk. Enforces self-evaluation, status finalization, and workspace initialization.
+- **`check-self-eval.sh`** (enhanced SubagentStop hook): Changed from warning-only (exit 0 + log file) to blocking (exit 2 + stderr feedback). Subagents can no longer stop without writing self-evaluation.
+- **hooks.json restructured**: 5 hook registrations across 4 lifecycle events (SessionStart, SubagentStop, TaskCompleted, Stop). Completion gate runs before feedback routing.
+- **Task creation in orchestration patterns**: All 4 patterns now create `[PAS]`-prefixed Claude Code tasks at startup for each phase + shutdown steps. Tasks are enforced by hooks.
+- **Session tracking**: Feedback files use session-specific filenames (`orchestrator-{session_id}.md`). Stop hook verifies feedback from the current session, not a previous one.
+
 ## 1.2.0 — 2026-03-07
 
 Generation scripts. Three bash scripts replace manual artifact creation — the orchestrator makes creative decisions, scripts handle mechanical work. Zero post-generation editing.
