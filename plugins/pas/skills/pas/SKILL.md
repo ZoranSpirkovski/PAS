@@ -11,6 +11,7 @@ Read the orchestration pattern from `${CLAUDE_SKILL_DIR}/../../library/orchestra
 Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR}/../../processes/pas/agents/orchestrator/skills/`:
 
 - **Creating something new** (process, pipeline, workflow): read `creating-processes/SKILL.md`
+- **Creating hooks** (hook, lifecycle, guard, automation, when something happens): read `creating-hooks/SKILL.md`
 - **Applying feedback** (upgrade, improve, what feedback exists): read `applying-feedback/SKILL.md`
 - **Modifying existing** (change, update, add phase): read the target artifact, then use creation skills
 - **Running a process** (run article, start pipeline): point to thin launcher (e.g., `/article`)
