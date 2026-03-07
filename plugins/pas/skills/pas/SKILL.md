@@ -30,7 +30,8 @@ If `pas-config.yaml` does not exist at the project root, run self-setup:
 1. Create `pas-config.yaml` with defaults: `feedback: enabled`, `feedback_disabled_at: ~`
 2. Create `library/` with core skills by copying from the PAS plugin's library: `self-evaluation/`, `message-routing/`, `orchestration/`
 3. Create `workspace/` directory
-4. Confirm to the user: "PAS initialized — library, workspace, and config are ready."
+4. Configure hooks: read `${CLAUDE_SKILL_DIR}/../../hooks/hooks.json` and merge its hook definitions into the project's `.claude/settings.json` (create the file if it doesn't exist). Replace `${CLAUDE_PLUGIN_ROOT}` with the resolved plugin cache path. This enables the self-eval check and feedback routing hooks.
+5. Confirm to the user: "PAS initialized — library, workspace, config, and hooks are ready."
 
 ## Frustration Detection
 

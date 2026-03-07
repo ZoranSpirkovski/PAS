@@ -8,4 +8,5 @@ Changes:
 - SKILL.md (entry point): Enhanced First-Run Detection to create library/, workspace/, and pas-config.yaml
 - SKILL.md (entry point): Added Framework Feedback section for routing PAS-level issues to GitHub
 - SKILL.md (entry point): Updated Library Bootstrap to reference First-Run Detection
-- plugin.json: Added hooks field pointing to hooks/hooks.json
+- plugin.json: Removed invalid hooks field (plugin manifest doesn't support it)
+- SKILL.md (entry point): First-Run Detection now installs hooks into project `.claude/settings.json` instead

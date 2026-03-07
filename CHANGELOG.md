@@ -25,7 +25,7 @@ First feedback cycle. Applied 16 signals from first real usage (SEO process crea
 
 ### Infrastructure
 
-- **Hook declaration**: Added `hooks` field to plugin.json so check-self-eval.sh and route-feedback.sh actually fire.
+- **Hook installation via self-setup**: Plugin manifest doesn't support hook declaration. First-Run Detection now installs hooks into the project's `.claude/settings.json`, enabling check-self-eval.sh and route-feedback.sh.
 
 ## 1.0.0 — 2026-03-06
 
