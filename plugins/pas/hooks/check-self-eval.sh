@@ -58,9 +58,16 @@ if [ -n "$AGENT_TRANSCRIPT" ] && [ -f "$AGENT_TRANSCRIPT" ]; then
   fi
 fi
 
-# No self-eval found — log warning with agent_id
-WARNINGS_DIR="$CWD/feedback"
-mkdir -p "$WARNINGS_DIR"
-echo "[$(date -Iseconds)] WARNING: Agent '$AGENT_ID' shutdown without writing self-eval to $FEEDBACK_DIR" >> "$WARNINGS_DIR/warnings.log"
+# No self-eval found — block subagent from stopping
+cat >&2 <<EOF
+SELF-EVALUATION MISSING
 
-exit 0
+Agent '${AGENT_ID}' is shutting down without writing self-evaluation.
+
+Before stopping, write your self-evaluation to:
+  ${FEEDBACK_DIR}/${AGENT_ID}.md
+
+Use library/self-evaluation/SKILL.md for the format.
+If nothing went wrong, write "No issues detected."
+EOF
+exit 2
