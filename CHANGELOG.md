@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.0 — 2026-03-07
+
+Generation scripts. Three bash scripts replace manual artifact creation — the orchestrator makes creative decisions, scripts handle mechanical work. Zero post-generation editing.
+
+### Generation Scripts
+
+- **`pas-create-skill`**: Generates SKILL.md, changelog, references/, feedback/backlog/ from CLI flags. Validates kebab-case names, required flags.
+- **`pas-create-agent`**: Generates agent.md, skills/, references/, changelog, feedback/backlog/. Auto-merges orchestrator tools and behavior when `--role orchestrator`.
+- **`pas-create-process`**: Generates process.md, mode files, thin launcher, references/, changelog, feedback/backlog/. Validates orchestration patterns, phase/input field counts.
+
+### Skill Simplification
+
+- **creating-skills**: Steps 4-6 (Write SKILL.md, Scaffold, Create Eval) replaced by Step 4 "Generate the Skill" calling `pas-create-skill`.
+- **creating-agents**: Steps 5-7 (Write agent.md, Scaffold, Create Eval) replaced by Step 5 "Generate the Agent" calling `pas-create-agent`. Added Step 6 "Create Agent Skills".
+- **creating-processes**: Steps 6-12 (Scaffold, Write process.md, Mode Files, Thin Launcher, Integration Test) replaced by Step 6 "Generate Process" calling `pas-create-process`.
+
 ## 1.1.0 — 2026-03-07
 
 First feedback cycle. Applied 16 signals from first real usage (SEO process creation across 2 sessions). [Issue #1](https://github.com/ZoranSpirkovski/PAS/issues/1), [PR #2](https://github.com/ZoranSpirkovski/PAS/pull/2).
