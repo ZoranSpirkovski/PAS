@@ -1,7 +1,8 @@
 [OQI-02]
 Target: process:pas-development
-Degraded: Orchestrator skipped self-evaluation at shutdown despite having just implemented the fix for this exact problem
-Root Cause: The orchestrator completed all implementation work, ran verification, and presented the summary — but did not write self-evaluation or finalize status.yaml. The product owner had to remind the orchestrator.
-Fix: The COMPLETION GATE is now in the orchestration patterns. The verify-completion-gate.sh Stop hook will enforce this technically with exit 2.
-Evidence: "User said 'from what I can see you didn't do the self-evaluation' after the orchestrator declared batch complete without shutdown."
-Priority: HIGH
+Degraded: Discovery agents' claims were initially taken at face value without code verification
+Root Cause: The orchestrator synthesized agent findings and produced priorities without verifying claims against actual source code. The product owner had to intervene: "we need to validate each ticket, we cannot take things for granted. treat tickets as if they are tips to look into not definitive."
+Fix: The orchestrator should always verify agent claims against code before presenting gate summaries. Add a verification step between agent reports and gate presentation in the Discovery phase.
+Evidence: "User said 'we need to validate each ticket, we cannot take things for granted'"
+Priority: MEDIUM
+
