@@ -12,13 +12,13 @@ Set up PAS feedback hooks when ALL of these are true:
 
 ### check-self-eval.sh (SubagentStop)
 
-**Purpose:** Safety net that warns when an agent shuts down without writing self-evaluation.
+**Purpose:** Blocks an agent from shutting down unless it has written its own self-evaluation file.
 
 **Event:** SubagentStop
 **Handler:** command
 **Timeout:** 10 seconds
 
-**Enhanced script (with P1 improvements):**
+**Script (agent-specific check, blocking):**
 
 ```bash
 #!/usr/bin/env bash
@@ -66,11 +66,17 @@ if [ ! -d "$FEEDBACK_DIR" ]; then
   exit 0
 fi
 
-# Primary check: feedback .md files in workspace
-FEEDBACK_COUNT=$(find "$FEEDBACK_DIR" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l)
-
-if [ "$FEEDBACK_COUNT" -gt 0 ]; then
-  exit 0  # Self-eval found
+# Primary check: agent-specific feedback file
+if [ "$AGENT_ID" != "unknown" ] && [ -n "$AGENT_ID" ]; then
+  # Look for files matching this agent's name pattern
+  if find "$FEEDBACK_DIR" -maxdepth 1 \( -name "${AGENT_ID}.md" -o -name "${AGENT_ID}-*.md" \) 2>/dev/null | grep -q .; then
+    exit 0  # Agent-specific self-eval found
+  fi
+else
+  # Unknown agent — fall back to any .md file
+  if find "$FEEDBACK_DIR" -maxdepth 1 -name "*.md" 2>/dev/null | grep -q .; then
+    exit 0  # Self-eval found (agent unknown, accepting any)
+  fi
 fi
 
 # Secondary check (P1): scan transcript for inline signal patterns
@@ -81,183 +87,40 @@ if [ -n "$AGENT_TRANSCRIPT" ] && [ -f "$AGENT_TRANSCRIPT" ]; then
   fi
 fi
 
-# No self-eval found — log warning with agent_id
-WARNINGS_DIR="$CWD/feedback"
-mkdir -p "$WARNINGS_DIR"
-echo "[$(date -Iseconds)] WARNING: Agent '$AGENT_ID' shutdown without writing self-eval to $FEEDBACK_DIR" >> "$WARNINGS_DIR/warnings.log"
+# No self-eval found — block subagent from stopping
+cat >&2 <<EOF
+SELF-EVALUATION MISSING
 
-exit 0
+Agent '${AGENT_ID}' is shutting down without writing self-evaluation.
+
+Before stopping, write your self-evaluation to:
+  ${FEEDBACK_DIR}/${AGENT_ID}.md
+
+Use library/self-evaluation/SKILL.md for the format.
+If nothing went wrong, write "No issues detected."
+EOF
+exit 2
 ```
 
 ### route-feedback.sh (Stop)
 
-**Purpose:** Routes feedback signals from workspace feedback inbox to artifact backlogs.
+**Purpose:** Routes feedback signals from workspace feedback inbox to artifact backlogs. Framework signals (`Target: framework:pas` with `Route: github-issue`) are filed as GitHub issues automatically.
 
 **Event:** Stop
 **Handler:** command
 **Timeout:** 30 seconds
 
-**Enhanced script (with P1 improvements and issue #3 fixes):**
+**Script (with plugins/ fallback, framework routing, .routed markers):**
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
+The canonical version lives at `plugins/pas/hooks/route-feedback.sh`. Key features:
 
-# Stop hook: routes feedback signals to artifact backlogs.
-# Enhanced: also extracts signals from last_assistant_message,
-# mkdir -p before all log writes, sort-by-mtime for workspace detection.
+- `resolve_target_path()` searches `$CWD/processes/`, then `$CWD/plugins/` as fallback for process/agent/skill targets
+- `framework)` case returns sentinel `__framework__` which triggers `route_framework_signal()`
+- `route_framework_signal()` files GitHub issues via `gh issue create` for signals marked `Route: github-issue`
+- Guards: checks `gh auth status` before attempting; logs to `$CWD/feedback/framework-routing.log`
+- Processed feedback files are marked with `.routed` companion file instead of deleted
 
-INPUT=$(cat)
-
-CWD=$(echo "$INPUT" | jq -r '.cwd')
-LAST_MESSAGE=$(echo "$INPUT" | jq -r '.last_assistant_message // empty')
-
-if [ -z "$CWD" ]; then
-  exit 0
-fi
-
-# --- Functions ---
-
-find_active_workspace() {
-  local workspace_dir="$CWD/workspace"
-  if [ ! -d "$workspace_dir" ]; then
-    return 1
-  fi
-
-  local active_status
-  active_status=$(find "$workspace_dir" -name "status.yaml" -print 2>/dev/null | while read -r f; do
-    echo "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null || echo 0) $f"
-  done | sort -rn | head -1 | awk '{print $2}')
-
-  if [ -z "$active_status" ]; then
-    return 1
-  fi
-
-  dirname "$active_status"
-}
-
-resolve_target_path() {
-  local target="$1"
-  local type value
-
-  type=$(echo "$target" | cut -d: -f1)
-  value=$(echo "$target" | cut -d: -f2-)
-
-  case "$type" in
-    process)
-      echo "$CWD/processes/$value/feedback/backlog"
-      ;;
-    agent)
-      local found
-      found=$(find "$CWD/processes" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1)
-      echo "${found:-}"
-      ;;
-    skill)
-      local found
-      found=$(find "$CWD/processes" -path "*/skills/$value/feedback/backlog" -type d 2>/dev/null | head -1)
-      if [ -z "$found" ]; then
-        found=$(find "$CWD/library" -path "*/$value/feedback/backlog" -type d 2>/dev/null | head -1)
-      fi
-      echo "${found:-}"
-      ;;
-    *)
-      echo ""
-      ;;
-  esac
-}
-
-route_signal() {
-  local signal_block="$1"
-  local signal_id="$2"
-  local source_basename="$3"
-  local target_path="$4"
-  local today
-
-  today=$(date +%Y-%m-%d)
-  local dest_file="$target_path/${today}-${source_basename}-${signal_id}.md"
-
-  mkdir -p "$target_path"
-  echo "$signal_block" > "$dest_file"
-}
-
-parse_and_route_signals() {
-  local text="$1"
-  local source_name="$2"
-
-  local current_signal=""
-  local current_id=""
-  local current_target=""
-
-  while IFS= read -r line || [ -n "$line" ]; do
-    if echo "$line" | grep -qE '^\[(PPU|OQI|GATE|STA)-[0-9]+\]'; then
-      # Route previous signal
-      if [ -n "$current_signal" ] && [ -n "$current_target" ]; then
-        local target_path
-        target_path=$(resolve_target_path "$current_target")
-        if [ -n "$target_path" ]; then
-          route_signal "$current_signal" "$current_id" "$source_name" "$target_path"
-        else
-          mkdir -p "$CWD/feedback"
-          echo "[$(date -Iseconds)] WARNING: Unknown target '$current_target'" >> "$CWD/feedback/warnings.log" 2>/dev/null || true
-        fi
-      fi
-
-      current_id=$(echo "$line" | grep -oE '(PPU|OQI|GATE|STA)-[0-9]+')
-      current_signal="$line"
-      current_target=""
-    else
-      if [ -n "$current_id" ]; then
-        current_signal="$current_signal
-$line"
-      fi
-      if echo "$line" | grep -qE '^Target:'; then
-        current_target=$(echo "$line" | sed 's/^Target:[[:space:]]*//')
-      fi
-    fi
-  done <<< "$text"
-
-  # Route last signal
-  if [ -n "$current_signal" ] && [ -n "$current_target" ]; then
-    local target_path
-    target_path=$(resolve_target_path "$current_target")
-    if [ -n "$target_path" ]; then
-      route_signal "$current_signal" "$current_id" "$source_name" "$target_path"
-    else
-      mkdir -p "$CWD/feedback"
-      echo "[$(date -Iseconds)] WARNING: Unknown target '$current_target'" >> "$CWD/feedback/warnings.log" 2>/dev/null || true
-    fi
-  fi
-}
-
-# --- Main ---
-
-# Find active workspace
-ACTIVE_WORKSPACE=$(find_active_workspace) || exit 0
-FEEDBACK_DIR="$ACTIVE_WORKSPACE/feedback"
-
-# Route from .md files (primary mechanism)
-if [ -d "$FEEDBACK_DIR" ]; then
-  FEEDBACK_FILES=$(find "$FEEDBACK_DIR" -maxdepth 1 -name "*.md" 2>/dev/null)
-
-  if [ -n "$FEEDBACK_FILES" ]; then
-    echo "$FEEDBACK_FILES" | while read -r feedback_file; do
-      [ -f "$feedback_file" ] || continue
-      source_basename=$(basename "$feedback_file" .md)
-      parse_and_route_signals "$(cat "$feedback_file")" "$source_basename"
-      rm "$feedback_file"
-    done
-  fi
-fi
-
-# Route from last_assistant_message (P1 — catches inline feedback)
-if [ -n "$LAST_MESSAGE" ]; then
-  if echo "$LAST_MESSAGE" | grep -qE '\[(PPU|OQI|GATE|STA)-[0-9]+\]'; then
-    parse_and_route_signals "$LAST_MESSAGE" "inline-final-message"
-  fi
-fi
-
-exit 0
-```
+Refer to the deployed script at `${CLAUDE_PLUGIN_ROOT}/hooks/route-feedback.sh` for the full implementation.
 
 ## Hook Registration
 

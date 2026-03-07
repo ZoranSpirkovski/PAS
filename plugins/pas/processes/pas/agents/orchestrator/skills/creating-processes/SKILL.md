@@ -86,10 +86,13 @@ bash ${CLAUDE_SKILL_DIR}/scripts/pas-create-process \
   --phase "{name}:{agent}:{input}:{output}:{gate}" \
   --input "{name}:{description}" \
   --description "{brief description}" \
-  --sequential {true|false}
+  --sequential {true|false} \
+  --base-dir {directory}
 ```
 
 Repeatable flags: `--phase` (required, at least one), `--input` (required, at least one).
+
+Optional: `--base-dir` sets the root directory for output (default: current directory). Use for test isolation to avoid generating into the project's real `processes/` directory.
 
 This creates the process directory (process.md, mode files, references/, feedback/), thin launcher, and changelog.
 
@@ -101,7 +104,19 @@ For each agent determined in step 4, use `creating-agents/SKILL.md`:
 - Follow its workflow for each agent
 - The orchestrator agent is always created first
 
-### 8. Verify Against Source Material
+### 8. Determine Hooks
+
+Evaluate whether the process needs lifecycle hooks:
+
+- **Feedback hooks**: If `pas-config.yaml` has `feedback: enabled`, the PAS plugin's hooks handle self-eval and routing automatically. No per-process hooks needed for feedback.
+- **Domain-specific guards**: Does any phase need pre-conditions checked before tool use? (e.g., block destructive commands, validate inputs)
+- **Lifecycle automation**: Should anything happen automatically at session start, agent stop, or task completion?
+
+If hooks are needed, use `creating-hooks/SKILL.md` from the same skills directory as this skill.
+
+Most processes do not need custom hooks — the PAS plugin's global hooks cover feedback lifecycle. Only add hooks when the process has domain-specific automation needs.
+
+### 9. Verify Against Source Material
 
 If Step 2 (Prepare Reference Material) was used, cross-check every created skill against the reference doc:
 
