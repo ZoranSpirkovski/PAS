@@ -11,6 +11,7 @@ MODEL=""
 TOOLS=""
 IDENTITY=""
 ROLE="specialist"
+BASE_DIR=""
 FORCE=false
 declare -a BEHAVIORS=()
 declare -a DELIVERABLES=()
@@ -33,6 +34,7 @@ Required:
   --deliverable TEXT    What the agent produces (repeatable)
 
 Optional:
+  --base-dir DIR        Base directory for output (default: current directory)
   --role TYPE           orchestrator or specialist (default: specialist)
   --force               Overwrite existing directory
 USAGE
@@ -50,6 +52,7 @@ while [[ $# -gt 0 ]]; do
     --identity) IDENTITY="$2"; shift 2 ;;
     --behavior) BEHAVIORS+=("$2"); shift 2 ;;
     --deliverable) DELIVERABLES+=("$2"); shift 2 ;;
+    --base-dir) BASE_DIR="$2"; shift 2 ;;
     --role) ROLE="$2"; shift 2 ;;
     --force) FORCE=true; shift ;;
     --help|-h) usage ;;
@@ -120,7 +123,7 @@ if [[ "$ROLE" == "orchestrator" ]]; then
 fi
 
 # Build target path
-TARGET="processes/${PROCESS}/agents/${NAME}"
+TARGET="${BASE_DIR:+${BASE_DIR}/}processes/${PROCESS}/agents/${NAME}"
 
 # Check directory conflict
 if [[ -d "$TARGET" && "$FORCE" != true ]]; then
