@@ -43,11 +43,17 @@ if [ ! -d "$FEEDBACK_DIR" ]; then
   exit 0
 fi
 
-# Primary check: feedback .md files in workspace
-FEEDBACK_COUNT=$(find "$FEEDBACK_DIR" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l)
-
-if [ "$FEEDBACK_COUNT" -gt 0 ]; then
-  exit 0  # Self-eval found
+# Primary check: agent-specific feedback file
+if [ "$AGENT_ID" != "unknown" ] && [ -n "$AGENT_ID" ]; then
+  # Look for files matching this agent's name pattern
+  if find "$FEEDBACK_DIR" -maxdepth 1 \( -name "${AGENT_ID}.md" -o -name "${AGENT_ID}-*.md" \) 2>/dev/null | grep -q .; then
+    exit 0  # Agent-specific self-eval found
+  fi
+else
+  # Unknown agent — fall back to any .md file
+  if find "$FEEDBACK_DIR" -maxdepth 1 -name "*.md" 2>/dev/null | grep -q .; then
+    exit 0  # Self-eval found (agent unknown, accepting any)
+  fi
 fi
 
 # Secondary check (P1): scan transcript for inline signal patterns

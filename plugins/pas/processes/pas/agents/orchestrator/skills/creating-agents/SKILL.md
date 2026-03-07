@@ -62,10 +62,13 @@ bash ${CLAUDE_SKILL_DIR}/scripts/pas-create-agent \
   --behavior "{behavioral rule 1}" \
   --behavior "{behavioral rule 2}" \
   --deliverable "{what the agent produces}" \
-  --role {orchestrator|specialist}
+  --role {orchestrator|specialist} \
+  --base-dir {directory}
 ```
 
 Repeatable flags: `--behavior` (required, at least one), `--deliverable` (required, at least one).
+
+Optional: `--base-dir` sets the root directory for output (default: current directory).
 
 When `--role orchestrator`, the script automatically:
 - Merges required orchestrator tools (Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch, Agent, SendMessage, TeamCreate)
