@@ -40,90 +40,36 @@ Default to one skill (simpler). Split when any heuristic triggers:
 
 When in doubt, keep it as one skill. You can always split later when feedback indicates the need.
 
-### 4. Write SKILL.md
+### 4. Generate the Skill
 
-Follow the Agent Skills spec format. SKILL.md must be under 500 lines.
+Run the generation script with all decisions from steps 1-3:
 
-```yaml
----
-name: {skill-name-with-hyphens}
-description: Use when {triggering conditions}. {What capability this provides.}
----
-
-# {Skill Name}
-
-## Overview
-
-{Core principle in 1-2 sentences. What this skill does and why.}
-
-## When to Use
-
-{Specific triggering conditions. When NOT to use.}
-
-## Process
-
-{The actual instructions. Numbered steps for procedural skills, structured sections for reference skills.}
-
-## Output Format
-
-{What the skill produces. File format, structure, required sections.}
-
-## Quality Checks
-
-{How to verify the output is good. Specific criteria the agent should self-check.}
-
-## Common Mistakes
-
-{What goes wrong and how to fix it. Populated by feedback over time.}
+```bash
+bash ${CLAUDE_SKILL_DIR}/scripts/pas-create-skill \
+  --process {process-name} \
+  --agent {agent-name} \
+  --name {skill-name} \
+  --description "Use when {triggering conditions}. {What capability this provides.}" \
+  --overview "{Core principle in 1-2 sentences}" \
+  --when-to-use "{Specific trigger conditions}" \
+  --when-not-to-use "{When NOT to use}" \
+  --step "{Step 1 instruction}" \
+  --step "{Step 2 instruction}" \
+  --output-format "{What the skill produces}" \
+  --quality-check "{Self-check criterion}" \
+  --common-mistake "{Known pitfall}"
 ```
+
+Repeatable flags: `--step` (required, at least one), `--quality-check`, `--common-mistake`.
 
 **Key rules from the Agent Skills spec:**
 - Description = when to use, NOT what it does. Start with "Use when..."
-- Progressive disclosure: SKILL.md is the overview. Link to `references/` for heavy material.
+- Progressive disclosure: SKILL.md is the overview. Add heavy material to `references/`.
 - Concise: only add what Claude doesn't already know. Challenge each paragraph.
 - Consistent terminology: pick one term, use it everywhere.
+- SKILL.md must be under 500 lines.
 
-### 5. Scaffold Skill Directory
-
-Create the minimal directory structure:
-
-```
-{skill-name}/
-  SKILL.md
-  feedback/
-    backlog/
-      .gitkeep
-  changelog.md
-```
-
-Optional directories (create only when needed):
-- `scripts/` — executable code the agent can run
-- `references/` — docs the agent reads on demand (for progressive disclosure)
-- `assets/` — templates, images, data files
-- `evals/` — structured test cases
-
-### 6. Create Skill Eval
-
-Create `evals/evals.json` with test assertions:
-
-```json
-{
-  "evals": [
-    {
-      "name": "{test-name}",
-      "description": "{what this tests}",
-      "input": "{sample input or reference to evals/files/}",
-      "assertions": [
-        "{expected behavior or output characteristic}"
-      ]
-    }
-  ]
-}
-```
-
-Evals verify the skill produces correct output given representative input. They are not unit tests. They describe expected behavior that can be checked by reading the output.
-
-### 7. Library Graduation Check
+### 5. Library Graduation Check
 
 After creating the skill, check if it should be in `library/` instead:
 
