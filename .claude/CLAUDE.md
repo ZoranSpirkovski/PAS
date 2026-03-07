@@ -7,7 +7,7 @@ This is the development workspace for PAS (Process-Agent-Skill). The plugin sour
 - `main` — Plugin distribution (clean, release-only)
 - `dev` — Development workspace (this branch)
 
-Development happens here. Plugin changes get PR'd to `main`. `main` never merges from `dev`.
+All PAS plugin development happens on `dev`. Issues get applied here, tested, validated, and eventually merged into `main` for release.
 
 ## Repo Layout
 
