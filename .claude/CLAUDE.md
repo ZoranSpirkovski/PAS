@@ -1,6 +1,6 @@
 # PAS Framework
 
-Process-Agent-Skill framework for building agentic workflows. Distributed as a Claude Code plugin marketplace.
+This is the canonical development repository for PAS (Process-Agent-Skill). All development happens here, users install from here, and this is the single source of truth for the framework. PAS is distributed as a Claude Code plugin.
 
 ## Repo Layout
 

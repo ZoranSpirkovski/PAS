@@ -1,5 +1,7 @@
 # PAS Framework
 
+> **This is the official source repository for PAS.** All development happens here, and this is where users get the latest version.
+
 **Process, Agent, Skill** - a modular framework for building agentic workflows with AI coding assistants.
 
 PAS gives you composable primitives that can be created, tested, improved, and combined into any automated pipeline. Define a goal, and PAS creates the process, agents, and skills needed to achieve it. Feedback from each run improves the system over time.
