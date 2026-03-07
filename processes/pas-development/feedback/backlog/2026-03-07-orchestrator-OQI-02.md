@@ -1,8 +1,7 @@
 [OQI-02]
 Target: process:pas-development
-Degraded: Orchestrator proposed a narrow plan until product owner pushed for comprehensive scope
-Root Cause: When asked to plan feedback enforcement, the orchestrator initially proposed only a Stop hook and deferred TaskCompleted and SessionStart to "future work." The product owner had to push for comprehensive coverage.
-Fix: When the product owner asks for a complete fix, explore the full solution space before constraining scope.
-Evidence: "User said 'well no we need the task completed and session start as well no? lets be comprehensive here'"
+Degraded: Orchestrator skipped self-evaluation at shutdown despite having just implemented the fix for this exact problem
+Root Cause: The orchestrator completed all implementation work, ran verification, and presented the summary — but did not write self-evaluation or finalize status.yaml. The product owner had to remind the orchestrator.
+Fix: The COMPLETION GATE is now in the orchestration patterns. The verify-completion-gate.sh Stop hook will enforce this technically with exit 2.
+Evidence: "User said 'from what I can see you didn't do the self-evaluation' after the orchestrator declared batch complete without shutdown."
 Priority: HIGH
-

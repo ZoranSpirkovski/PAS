@@ -1,8 +1,8 @@
 [OQI-01]
 Target: process:pas-development
-Degraded: Orchestrator skipped self-evaluation AGAIN — 4th consecutive session
-Root Cause: After completing feedback-system-fix (Groups A-D), the orchestrator presented verification results and said "Ready for feedback" without writing self-eval or finalizing status.yaml. The product owner had to say "from what I can see you didn't do the self-evaluation."
-Fix: verify-completion-gate.sh (Stop hook with exit 2) will technically block this.
-Evidence: "User said 'from what I can see you didn't do the self-evaluation' after orchestrator declared batch complete."
+Degraded: Orchestrator planned implementation without workspace lifecycle — 3/3 sessions now where process lifecycle was not followed autonomously
+Root Cause: The orchestrator produced a complete implementation plan but omitted the pas-development process's own workspace initialization, status tracking, and shutdown steps. The product owner had to point this out.
+Fix: The orchestration patterns (Group A changes) add HARD REQUIREMENT and COMPLETION GATE enforcement. The pas-development process.md itself should reference workspace lifecycle explicitly in its phase definitions.
+Evidence: "Product owner rejected plan approval twice: first for missing workspace lifecycle, then for not noting that they had to tell the orchestrator to follow the process."
 Priority: HIGH
 
