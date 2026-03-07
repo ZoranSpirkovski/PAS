@@ -72,9 +72,8 @@ resolve_target_path() {
       echo "${found:-}"
       ;;
     framework)
-      # Framework feedback is routed to GitHub issues by the orchestrator at shutdown.
-      # Return empty — the hook does not handle GitHub issue creation.
-      echo ""
+      # Sentinel value — caller handles framework routing via route_framework_signal()
+      echo "__framework__"
       ;;
     *)
       echo ""
@@ -96,6 +95,49 @@ route_signal() {
   echo "$signal_block" > "$dest_file"
 }
 
+route_framework_signal() {
+  local signal_block="$1"
+  local signal_id="$2"
+  local log_dir="$CWD/feedback"
+  mkdir -p "$log_dir"
+
+  # Guard: only route signals marked for GitHub issue creation
+  if ! echo "$signal_block" | grep -q 'Route: github-issue'; then
+    echo "[$(date -Iseconds)] INFO: Framework signal ${signal_id} not marked 'Route: github-issue', skipping" >> "$log_dir/framework-routing.log" 2>/dev/null || true
+    return 0
+  fi
+
+  # Guard: check gh CLI is available and authenticated
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "[$(date -Iseconds)] WARNING: gh CLI not found, cannot route ${signal_id} to GitHub" >> "$log_dir/framework-routing.log" 2>/dev/null || true
+    return 0
+  fi
+
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "[$(date -Iseconds)] WARNING: gh not authenticated, cannot route ${signal_id} to GitHub" >> "$log_dir/framework-routing.log" 2>/dev/null || true
+    return 0
+  fi
+
+  # Extract a one-line summary from the signal block
+  local summary
+  summary=$(echo "$signal_block" | grep -E '^(Degraded:|Preference:|Rejected Change:|Behavior:)' | head -1 | sed 's/^[^:]*:[[:space:]]*//')
+  if [ -z "$summary" ]; then
+    # Fallback: use the second line (first line after the signal ID header)
+    summary=$(echo "$signal_block" | sed -n '2p' | sed 's/^[[:space:]]*//')
+  fi
+  # Truncate summary to 80 chars
+  summary=$(echo "$summary" | cut -c1-80)
+
+  # File as GitHub issue
+  if gh issue create --repo ZoranSpirkovski/PAS \
+    --title "[Feedback] ${signal_id}: ${summary}" \
+    --body "$signal_block" >/dev/null 2>&1; then
+    echo "[$(date -Iseconds)] OK: Filed ${signal_id} as GitHub issue" >> "$log_dir/framework-routing.log" 2>/dev/null || true
+  else
+    echo "[$(date -Iseconds)] ERROR: Failed to file ${signal_id} as GitHub issue" >> "$log_dir/framework-routing.log" 2>/dev/null || true
+  fi
+}
+
 parse_and_route_signals() {
   local text="$1"
   local source_name="$2"
@@ -110,7 +152,9 @@ parse_and_route_signals() {
       if [ -n "$current_signal" ] && [ -n "$current_target" ]; then
         local target_path
         target_path=$(resolve_target_path "$current_target")
-        if [ -n "$target_path" ]; then
+        if [ "$target_path" = "__framework__" ]; then
+          route_framework_signal "$current_signal" "$current_id"
+        elif [ -n "$target_path" ]; then
           route_signal "$current_signal" "$current_id" "$source_name" "$target_path"
         else
           mkdir -p "$CWD/feedback"
@@ -136,7 +180,9 @@ $line"
   if [ -n "$current_signal" ] && [ -n "$current_target" ]; then
     local target_path
     target_path=$(resolve_target_path "$current_target")
-    if [ -n "$target_path" ]; then
+    if [ "$target_path" = "__framework__" ]; then
+      route_framework_signal "$current_signal" "$current_id"
+    elif [ -n "$target_path" ]; then
       route_signal "$current_signal" "$current_id" "$source_name" "$target_path"
     else
       mkdir -p "$CWD/feedback"

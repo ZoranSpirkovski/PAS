@@ -57,10 +57,13 @@ bash ${CLAUDE_SKILL_DIR}/scripts/pas-create-skill \
   --step "{Step 2 instruction}" \
   --output-format "{What the skill produces}" \
   --quality-check "{Self-check criterion}" \
-  --common-mistake "{Known pitfall}"
+  --common-mistake "{Known pitfall}" \
+  --base-dir {directory}
 ```
 
 Repeatable flags: `--step` (required, at least one), `--quality-check`, `--common-mistake`.
+
+Optional: `--base-dir` sets the root directory for output (default: current directory).
 
 **Key rules from the Agent Skills spec:**
 - Description = when to use, NOT what it does. Start with "Use when..."
