@@ -74,82 +74,34 @@ Read the orchestration decision matrix. If `library/orchestration/SKILL.md` does
 
 Default to hub-and-spoke when unsure.
 
-### 6. Scaffold Process Directory
+### 6. Generate Process
 
-Create the directory structure:
+Run the generation script with all decisions from steps 1-5:
 
-```
-processes/{name}/
-  process.md
-  agents/
-    orchestrator/
-    {specialist-1}/
-    {specialist-N}/
-  modes/
-    supervised.md
-    autonomous.md
-  config/           # Only if process needs configuration files
-  reference/        # Only if process needs reference documents
-  tools/            # Only if process needs scripts/tools
-  feedback/
-    backlog/
-  changelog.md
+```bash
+bash ${CLAUDE_SKILL_DIR}/scripts/pas-create-process \
+  --name {process-name} \
+  --goal "{one-sentence goal}" \
+  --orchestration {pattern} \
+  --phase "{name}:{agent}:{input}:{output}:{gate}" \
+  --input "{name}:{description}" \
+  --description "{brief description}" \
+  --sequential {true|false}
 ```
 
-### 7. Write process.md
+Repeatable flags: `--phase` (required, at least one), `--input` (required, at least one).
 
-Use this exact YAML frontmatter format:
+This creates the process directory (process.md, mode files, references/, feedback/), thin launcher, and changelog.
 
-```yaml
----
-name: {process-name}
-goal: {one-sentence goal}
-version: 1.0
-orchestration: {pattern}
-sequential: false
-modes: [supervised, autonomous]
+### 7. Create Agents
 
-input:
-  - {input-name}: {description}
-
-phases:
-  {phase-name}:
-    agent: {agent-name}
-    input: {file or list of files}
-    output: {file or list of files}
-    gate: {description of review point}
-
-status_file: workspace/{name}/{slug}/status.yaml
----
-
-# {Process Name}
-
-{Brief description of what this process does and why.}
-
-## Phases
-
-{Prose description of each phase, what it does, and how it contributes to the goal.}
-```
-
-### 8. Create Agents
-
-For each agent determined in step 4, invoke the creating-agents skill:
+For each agent determined in step 4, use `creating-agents/SKILL.md`:
 
 - Read `creating-agents/SKILL.md` from the same skills directory as this skill
 - Follow its workflow for each agent
 - The orchestrator agent is always created first
 
-### 8.5. Determine Hooks
-
-Does this process need lifecycle hooks?
-
-- If `pas-config.yaml` has `feedback: enabled` and the process uses agents: invoke `creating-hooks/SKILL.md` step 1a for PAS feedback infrastructure
-- If the process has specific lifecycle needs (validation before tool use, cleanup at session end, notification on completion): invoke `creating-hooks/SKILL.md` with the specific requirements
-- If neither applies: skip this step
-
-Read `creating-hooks/SKILL.md` from the same skills directory as this skill.
-
-### 9. Verify Against Source Material
+### 8. Verify Against Source Material
 
 If Step 2 (Prepare Reference Material) was used, cross-check every created skill against the reference doc:
 
@@ -159,58 +111,3 @@ If Step 2 (Prepare Reference Material) was used, cross-check every created skill
 4. Remove fabricated content. Add skills or skill sections for omissions.
 
 This is a mandatory step when source material exists. Do not skip it.
-
-### 10. Create Mode Files
-
-Create `modes/supervised.md` and `modes/autonomous.md`:
-
-**Supervised mode format:**
-```yaml
----
-name: supervised
-description: User reviews and approves at every phase gate
-gates: enforced
----
-
-## Behavior
-
-- After each phase completes, STOP and present the output to the user
-- Do NOT launch the next phase until the user approves
-- Present a summary of what was produced, key findings, and any concerns
-- If the user requests changes, route them to the appropriate agent
-
-## Gate Protocol
-
-At each gate:
-1. Show phase output summary (not raw files unless asked)
-2. Flag any quality concerns or red flags
-3. Ask: "Approve and continue, or request changes?"
-```
-
-**Autonomous mode:** Same structure, but `gates: advisory`. Log gate results but do not pause. Self-review at each gate point. Flag critical issues even in autonomous mode.
-
-### 11. Create Thin Launcher
-
-Create `.claude/skills/{name}/SKILL.md`:
-
-```yaml
----
-name: {process-name}
-description: {goal description, starts with action verb}
----
-
-Read `processes/{name}/process.md` for the process definition.
-Read the orchestration pattern from `library/orchestration/` as specified in the process.
-Execute.
-```
-
-### 12. Create Integration Test
-
-Create a test scenario in `processes/{name}/evals/` that verifies:
-
-- Process definition is valid YAML
-- All referenced agents exist
-- All referenced skills exist within their agents
-- Phase I/O dependencies form a valid DAG (no cycles)
-- Mode files have correct frontmatter
-- Thin launcher points to correct process.md

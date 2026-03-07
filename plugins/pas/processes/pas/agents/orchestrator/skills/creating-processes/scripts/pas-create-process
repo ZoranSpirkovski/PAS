@@ -1,0 +1,280 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# pas-create-process — Generate a complete PAS process directory from CLI arguments
+# Usage: pas-create-process --name NAME --goal "..." --orchestration PATTERN --phase "name:agent:input:output:gate" --input "name:description" [options]
+
+NAME=""
+GOAL=""
+ORCHESTRATION=""
+DESCRIPTION=""
+SEQUENTIAL="false"
+FORCE=false
+declare -a PHASES=()
+declare -a INPUTS=()
+
+VALID_PATTERNS=("solo" "hub-and-spoke" "sequential-agents" "discussion")
+
+usage() {
+  cat <<'USAGE'
+Usage: pas-create-process [options]
+
+Required:
+  --name NAME           Process slug (kebab-case)
+  --goal TEXT           One-sentence goal
+  --orchestration PAT   Pattern: solo, hub-and-spoke, sequential-agents, discussion
+  --phase SPEC          Phase spec as "name:agent:input:output:gate" (repeatable)
+  --input SPEC          Input spec as "name:description" (repeatable)
+
+Optional:
+  --description TEXT    Prose description for process.md body
+  --sequential BOOL     Force linear execution (default: false)
+  --force               Overwrite existing directory
+USAGE
+  exit 1
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --name) NAME="$2"; shift 2 ;;
+    --goal) GOAL="$2"; shift 2 ;;
+    --orchestration) ORCHESTRATION="$2"; shift 2 ;;
+    --phase) PHASES+=("$2"); shift 2 ;;
+    --input) INPUTS+=("$2"); shift 2 ;;
+    --description) DESCRIPTION="$2"; shift 2 ;;
+    --sequential) SEQUENTIAL="$2"; shift 2 ;;
+    --force) FORCE=true; shift ;;
+    --help|-h) usage ;;
+    *) echo "Error: Unknown flag '$1'"; usage ;;
+  esac
+done
+
+# Validate required flags
+MISSING=()
+[[ -z "$NAME" ]] && MISSING+=("--name")
+[[ -z "$GOAL" ]] && MISSING+=("--goal")
+[[ -z "$ORCHESTRATION" ]] && MISSING+=("--orchestration")
+[[ ${#PHASES[@]} -eq 0 ]] && MISSING+=("--phase (at least one)")
+[[ ${#INPUTS[@]} -eq 0 ]] && MISSING+=("--input (at least one)")
+
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  echo "Error: Missing required flags: ${MISSING[*]}"
+  exit 1
+fi
+
+# Validate kebab-case
+if [[ ! "$NAME" =~ ^[a-z][a-z0-9-]*$ ]]; then
+  echo "Error: --name must be kebab-case (lowercase letters, numbers, hyphens). Got: '$NAME'"
+  exit 1
+fi
+
+# Validate orchestration pattern
+VALID_PATTERN=false
+for p in "${VALID_PATTERNS[@]}"; do
+  [[ "$ORCHESTRATION" == "$p" ]] && VALID_PATTERN=true
+done
+if [[ "$VALID_PATTERN" != true ]]; then
+  echo "Error: --orchestration must be one of: ${VALID_PATTERNS[*]}. Got: '$ORCHESTRATION'"
+  exit 1
+fi
+
+# Validate phase format (5 colon-separated fields)
+for phase in "${PHASES[@]}"; do
+  FIELD_COUNT=$(echo "$phase" | awk -F: '{print NF}')
+  if [[ "$FIELD_COUNT" -ne 5 ]]; then
+    echo "Error: --phase must have 5 colon-separated fields (name:agent:input:output:gate). Got ${FIELD_COUNT} fields in: '$phase'"
+    exit 1
+  fi
+done
+
+# Validate input format (2 colon-separated fields)
+for input in "${INPUTS[@]}"; do
+  FIELD_COUNT=$(echo "$input" | awk -F: '{print NF}')
+  if [[ "$FIELD_COUNT" -ne 2 ]]; then
+    echo "Error: --input must have 2 colon-separated fields (name:description). Got ${FIELD_COUNT} fields in: '$input'"
+    exit 1
+  fi
+done
+
+# Build target path
+TARGET="processes/${NAME}"
+
+# Check directory conflict
+if [[ -d "$TARGET" && "$FORCE" != true ]]; then
+  echo "Error: ${TARGET}/ already exists. Use --force to overwrite."
+  exit 1
+fi
+
+if [[ -d "$TARGET" && "$FORCE" == true ]]; then
+  rm -rf "$TARGET"
+fi
+
+# Convert name to title case for heading
+TITLE=$(echo "$NAME" | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g')
+
+FILE_COUNT=0
+
+# Create directory structure
+mkdir -p "${TARGET}/agents"
+mkdir -p "${TARGET}/modes"
+mkdir -p "${TARGET}/references"
+mkdir -p "${TARGET}/feedback/backlog"
+
+# Generate process.md
+{
+  # YAML frontmatter
+  cat <<EOF
+---
+name: ${NAME}
+goal: ${GOAL}
+version: 1.0
+orchestration: ${ORCHESTRATION}
+sequential: ${SEQUENTIAL}
+modes: [supervised, autonomous]
+
+input:
+EOF
+
+  # Input entries
+  for input in "${INPUTS[@]}"; do
+    INPUT_NAME=$(echo "$input" | cut -d: -f1)
+    INPUT_DESC=$(echo "$input" | cut -d: -f2-)
+    echo "  - ${INPUT_NAME}: ${INPUT_DESC}"
+  done
+
+  echo ""
+  echo "phases:"
+
+  # Phase entries
+  for phase in "${PHASES[@]}"; do
+    PHASE_NAME=$(echo "$phase" | cut -d: -f1)
+    PHASE_AGENT=$(echo "$phase" | cut -d: -f2)
+    PHASE_INPUT=$(echo "$phase" | cut -d: -f3)
+    PHASE_OUTPUT=$(echo "$phase" | cut -d: -f4)
+    PHASE_GATE=$(echo "$phase" | cut -d: -f5)
+    cat <<EOF
+  ${PHASE_NAME}:
+    agent: ${PHASE_AGENT}
+    input: ${PHASE_INPUT}
+    output: ${PHASE_OUTPUT}
+    gate: ${PHASE_GATE}
+EOF
+  done
+
+  cat <<EOF
+
+status_file: workspace/${NAME}/{slug}/status.yaml
+---
+
+# ${TITLE}
+
+EOF
+
+  # Description
+  if [[ -n "$DESCRIPTION" ]]; then
+    echo "${DESCRIPTION}"
+  else
+    echo "${GOAL}"
+  fi
+
+  echo ""
+  echo "## Phases"
+  echo ""
+
+  # Phase descriptions
+  for phase in "${PHASES[@]}"; do
+    PHASE_NAME=$(echo "$phase" | cut -d: -f1)
+    PHASE_TITLE=$(echo "$PHASE_NAME" | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g')
+    PHASE_AGENT=$(echo "$phase" | cut -d: -f2)
+    PHASE_INPUT=$(echo "$phase" | cut -d: -f3)
+    PHASE_OUTPUT=$(echo "$phase" | cut -d: -f4)
+    PHASE_GATE=$(echo "$phase" | cut -d: -f5)
+    echo "**${PHASE_TITLE}**: Agent \`${PHASE_AGENT}\` takes \`${PHASE_INPUT}\` and produces \`${PHASE_OUTPUT}\`. Gate: ${PHASE_GATE}."
+    echo ""
+  done
+} > "${TARGET}/process.md"
+echo "  Created ${TARGET}/process.md"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+# Generate modes/supervised.md
+cat > "${TARGET}/modes/supervised.md" <<'EOF'
+---
+name: supervised
+description: User reviews and approves at every phase gate
+gates: enforced
+---
+
+## Behavior
+
+- After each phase completes, STOP and present the output to the user
+- Do NOT launch the next phase until the user approves
+- Present a summary of what was produced, key findings, and any concerns
+- If the user requests changes, route them to the appropriate agent
+
+## Gate Protocol
+
+At each gate:
+1. Show phase output summary (not raw files unless asked)
+2. Flag any quality concerns or red flags
+3. Ask: "Approve and continue, or request changes?"
+EOF
+echo "  Created ${TARGET}/modes/supervised.md"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+# Generate modes/autonomous.md
+cat > "${TARGET}/modes/autonomous.md" <<'EOF'
+---
+name: autonomous
+description: Execute all phases without pausing at gates
+gates: advisory
+---
+
+## Behavior
+
+- Execute phases sequentially without pausing for user approval
+- Log gate results but do not stop
+- Self-review at each gate point
+- Flag critical issues even in autonomous mode
+
+## Gate Protocol
+
+At each gate:
+1. Self-evaluate phase output against gate criteria
+2. Log result to status.yaml
+3. Continue to next phase unless critical issue detected
+4. If critical issue: pause and alert the user
+EOF
+echo "  Created ${TARGET}/modes/autonomous.md"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+# Generate changelog.md
+cat > "${TARGET}/changelog.md" <<EOF
+# ${TITLE} Changelog
+EOF
+echo "  Created ${TARGET}/changelog.md"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+# Create .gitkeep
+touch "${TARGET}/feedback/backlog/.gitkeep"
+echo "  Created ${TARGET}/feedback/backlog/.gitkeep"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+# Generate thin launcher
+LAUNCHER_DIR=".claude/skills/${NAME}"
+mkdir -p "${LAUNCHER_DIR}"
+cat > "${LAUNCHER_DIR}/SKILL.md" <<EOF
+---
+name: ${NAME}
+description: ${GOAL}
+---
+
+Read \`processes/${NAME}/process.md\` for the process definition.
+Read the orchestration pattern from \`library/orchestration/\` as specified in the process.
+Execute.
+EOF
+echo "  Created ${LAUNCHER_DIR}/SKILL.md"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+echo ""
+echo "Created process '${NAME}' with ${FILE_COUNT} files in ${TARGET}/"

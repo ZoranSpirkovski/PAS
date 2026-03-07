@@ -47,85 +47,30 @@ Match model capability to role complexity:
 
 Default to Sonnet for specialists, Opus for orchestrators. Downgrade when feedback shows a simpler model performs equally well.
 
-### 5. Write agent.md
+### 5. Generate the Agent
 
-Use this exact format:
+Run the generation script with all decisions from steps 1-4:
 
-```yaml
----
-name: {agent-name}
-description: {one-sentence role description}
-model: {model-id}
-tools: [{tool-list}]
-skills:
-  - skills/{skill-name}/SKILL.md
-  - library/self-evaluation/SKILL.md  # When feedback is enabled
----
-
-# {Agent Name}
-
-## Identity
-
-{2-3 sentences defining who this agent is. Personality, expertise, working style.}
-
-## Behavior
-
-- {Behavioral rule 1}
-- {Behavioral rule 2}
-- {Rule N}
-
-## Deliverables
-
-- {What this agent produces, with file paths relative to workspace}
-
-## Known Pitfalls
-
-(Populated by feedback over time)
-- {Known issue 1, if any from legacy experience}
+```bash
+bash ${CLAUDE_SKILL_DIR}/scripts/pas-create-agent \
+  --process {process-name} \
+  --name {agent-name} \
+  --description "{one-sentence role description}" \
+  --model {model-id} \
+  --tools "{comma-separated tool list}" \
+  --identity "{2-3 sentences defining who this agent is}" \
+  --behavior "{behavioral rule 1}" \
+  --behavior "{behavioral rule 2}" \
+  --deliverable "{what the agent produces}" \
+  --role {orchestrator|specialist}
 ```
 
-### 6. Scaffold Agent Directory
+Repeatable flags: `--behavior` (required, at least one), `--deliverable` (required, at least one).
 
-Create the directory structure:
+When `--role orchestrator`, the script automatically:
+- Merges required orchestrator tools (Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch, Agent, SendMessage, TeamCreate)
+- Adds orchestrator-specific behavior (startup reads, gate management, shutdown sequence)
 
-```
-processes/{process}/agents/{name}/
-  agent.md
-  skills/
-    {skill-1}/
-      SKILL.md
-      feedback/backlog/
-      changelog.md
-    {skill-N}/
-  feedback/
-    backlog/
-  changelog.md
-```
+### 6. Create Agent Skills
 
-### 7. Create Agent Eval
-
-Create a representative test scenario that verifies:
-
-- Agent can read its own agent.md and skills
-- Agent produces expected deliverables given sample input
-- Agent follows behavioral rules from its definition
-- Output quality meets baseline expectations
-
-## Orchestrator-Specific Requirements
-
-When the agent role is **orchestrator**, apply these additional rules:
-
-**Required tools:** Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch, Agent, SendMessage, TeamCreate
-
-**Required behavior:**
-- Reads `processes/{process}/process.md` on startup
-- Reads the orchestration pattern from `library/orchestration/` as declared in process.md
-- Reads workspace status to determine where to resume
-- Handles phases directly using its own skills (e.g., sourcing, editorial-review)
-- Delegates phases to specialist agents via TeamCreate
-- Interfaces with the user at gates (supervised mode)
-- Updates workspace status.yaml continuously
-- Carries `library/self-evaluation/SKILL.md` when feedback is enabled
-- Carries `library/message-routing/SKILL.md` for classifying user messages at gates
-- Monitors agents for hangs using historical duration data
-- Manages the shutdown sequence (downstream feedback, self-eval, finalize status)
+For each skill determined in step 3, use `creating-skills/SKILL.md` to generate it. The agent's `skills/` directory was created by the generation script.

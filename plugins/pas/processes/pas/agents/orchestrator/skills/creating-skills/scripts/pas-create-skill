@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# pas-create-skill — Generate a complete PAS skill directory from CLI arguments
+# Usage: pas-create-skill --process NAME --agent NAME --name NAME --description "..." --overview "..." --step "..." [options]
+
+PROCESS=""
+AGENT=""
+NAME=""
+DESCRIPTION=""
+OVERVIEW=""
+WHEN_TO_USE=""
+WHEN_NOT_TO_USE=""
+OUTPUT_FORMAT=""
+FORCE=false
+declare -a STEPS=()
+declare -a QUALITY_CHECKS=()
+declare -a COMMON_MISTAKES=()
+
+usage() {
+  cat <<'USAGE'
+Usage: pas-create-skill [options]
+
+Required:
+  --process NAME        Parent process name
+  --agent NAME          Parent agent name
+  --name NAME           Skill slug (kebab-case)
+  --description TEXT    "Use when..." trigger description
+  --overview TEXT       Core principle in 1-2 sentences
+  --step TEXT           Process step (repeatable, in order)
+
+Optional:
+  --when-to-use TEXT    Specific trigger conditions
+  --when-not-to-use TEXT  When NOT to use
+  --output-format TEXT  What the skill produces
+  --quality-check TEXT  Self-check criterion (repeatable)
+  --common-mistake TEXT Known pitfall (repeatable)
+  --force               Overwrite existing directory
+USAGE
+  exit 1
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --process) PROCESS="$2"; shift 2 ;;
+    --agent) AGENT="$2"; shift 2 ;;
+    --name) NAME="$2"; shift 2 ;;
+    --description) DESCRIPTION="$2"; shift 2 ;;
+    --overview) OVERVIEW="$2"; shift 2 ;;
+    --when-to-use) WHEN_TO_USE="$2"; shift 2 ;;
+    --when-not-to-use) WHEN_NOT_TO_USE="$2"; shift 2 ;;
+    --step) STEPS+=("$2"); shift 2 ;;
+    --output-format) OUTPUT_FORMAT="$2"; shift 2 ;;
+    --quality-check) QUALITY_CHECKS+=("$2"); shift 2 ;;
+    --common-mistake) COMMON_MISTAKES+=("$2"); shift 2 ;;
+    --force) FORCE=true; shift ;;
+    --help|-h) usage ;;
+    *) echo "Error: Unknown flag '$1'"; usage ;;
+  esac
+done
+
+# Validate required flags
+MISSING=()
+[[ -z "$PROCESS" ]] && MISSING+=("--process")
+[[ -z "$AGENT" ]] && MISSING+=("--agent")
+[[ -z "$NAME" ]] && MISSING+=("--name")
+[[ -z "$DESCRIPTION" ]] && MISSING+=("--description")
+[[ -z "$OVERVIEW" ]] && MISSING+=("--overview")
+[[ ${#STEPS[@]} -eq 0 ]] && MISSING+=("--step (at least one)")
+
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  echo "Error: Missing required flags: ${MISSING[*]}"
+  exit 1
+fi
+
+# Validate kebab-case
+if [[ ! "$NAME" =~ ^[a-z][a-z0-9-]*$ ]]; then
+  echo "Error: --name must be kebab-case (lowercase letters, numbers, hyphens). Got: '$NAME'"
+  exit 1
+fi
+
+# Build target path
+TARGET="processes/${PROCESS}/agents/${AGENT}/skills/${NAME}"
+
+# Check directory conflict
+if [[ -d "$TARGET" && "$FORCE" != true ]]; then
+  echo "Error: ${TARGET}/ already exists. Use --force to overwrite."
+  exit 1
+fi
+
+if [[ -d "$TARGET" && "$FORCE" == true ]]; then
+  rm -rf "$TARGET"
+fi
+
+# Convert skill name to title case for heading
+TITLE=$(echo "$NAME" | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g')
+
+# Count files created
+FILE_COUNT=0
+
+# Create directory structure
+mkdir -p "${TARGET}/references"
+mkdir -p "${TARGET}/feedback/backlog"
+
+# Generate SKILL.md
+{
+  cat <<EOF
+---
+name: ${NAME}
+description: ${DESCRIPTION}
+---
+
+# ${TITLE}
+
+## Overview
+
+${OVERVIEW}
+EOF
+
+  # When to Use section
+  if [[ -n "$WHEN_TO_USE" || -n "$WHEN_NOT_TO_USE" ]]; then
+    echo ""
+    echo "## When to Use"
+    echo ""
+    [[ -n "$WHEN_TO_USE" ]] && echo "${WHEN_TO_USE}"
+    if [[ -n "$WHEN_NOT_TO_USE" ]]; then
+      echo ""
+      echo "**When NOT to use:** ${WHEN_NOT_TO_USE}"
+    fi
+  fi
+
+  # Process section
+  echo ""
+  echo "## Process"
+  echo ""
+  for i in "${!STEPS[@]}"; do
+    echo "$((i + 1)). ${STEPS[$i]}"
+  done
+
+  # Output Format section
+  if [[ -n "$OUTPUT_FORMAT" ]]; then
+    echo ""
+    echo "## Output Format"
+    echo ""
+    echo "${OUTPUT_FORMAT}"
+  fi
+
+  # Quality Checks section
+  if [[ ${#QUALITY_CHECKS[@]} -gt 0 ]]; then
+    echo ""
+    echo "## Quality Checks"
+    echo ""
+    for check in "${QUALITY_CHECKS[@]}"; do
+      echo "- ${check}"
+    done
+  fi
+
+  # Common Mistakes section
+  echo ""
+  echo "## Common Mistakes"
+  echo ""
+  if [[ ${#COMMON_MISTAKES[@]} -gt 0 ]]; then
+    for mistake in "${COMMON_MISTAKES[@]}"; do
+      echo "- ${mistake}"
+    done
+  else
+    echo "(Populated by feedback over time)"
+  fi
+} > "${TARGET}/SKILL.md"
+echo "  Created ${TARGET}/SKILL.md"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+# Generate changelog.md
+cat > "${TARGET}/changelog.md" <<EOF
+# ${TITLE} Changelog
+EOF
+echo "  Created ${TARGET}/changelog.md"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+# Create .gitkeep
+touch "${TARGET}/feedback/backlog/.gitkeep"
+echo "  Created ${TARGET}/feedback/backlog/.gitkeep"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+echo ""
+echo "Created skill '${NAME}' with ${FILE_COUNT} files in ${TARGET}/"

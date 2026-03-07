@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# pas-create-agent — Generate a complete PAS agent directory from CLI arguments
+# Usage: pas-create-agent --process NAME --name NAME --description "..." --model ID --tools "..." --identity "..." --behavior "..." --deliverable "..." [options]
+
+PROCESS=""
+NAME=""
+DESCRIPTION=""
+MODEL=""
+TOOLS=""
+IDENTITY=""
+ROLE="specialist"
+FORCE=false
+declare -a BEHAVIORS=()
+declare -a DELIVERABLES=()
+
+VALID_MODELS=("claude-opus-4-6" "claude-sonnet-4-6" "claude-haiku-4-5")
+ORCHESTRATOR_TOOLS="Read,Write,Edit,Bash,Grep,Glob,WebSearch,WebFetch,Agent,SendMessage,TeamCreate"
+
+usage() {
+  cat <<'USAGE'
+Usage: pas-create-agent [options]
+
+Required:
+  --process NAME        Parent process name
+  --name NAME           Agent slug (kebab-case)
+  --description TEXT    One-sentence role description
+  --model ID            Model ID (claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5)
+  --tools LIST          Comma-separated tool list
+  --identity TEXT       2-3 sentences defining who the agent is
+  --behavior TEXT       Behavioral rule (repeatable)
+  --deliverable TEXT    What the agent produces (repeatable)
+
+Optional:
+  --role TYPE           orchestrator or specialist (default: specialist)
+  --force               Overwrite existing directory
+USAGE
+  exit 1
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --process) PROCESS="$2"; shift 2 ;;
+    --name) NAME="$2"; shift 2 ;;
+    --description) DESCRIPTION="$2"; shift 2 ;;
+    --model) MODEL="$2"; shift 2 ;;
+    --tools) TOOLS="$2"; shift 2 ;;
+    --identity) IDENTITY="$2"; shift 2 ;;
+    --behavior) BEHAVIORS+=("$2"); shift 2 ;;
+    --deliverable) DELIVERABLES+=("$2"); shift 2 ;;
+    --role) ROLE="$2"; shift 2 ;;
+    --force) FORCE=true; shift ;;
+    --help|-h) usage ;;
+    *) echo "Error: Unknown flag '$1'"; usage ;;
+  esac
+done
+
+# Validate required flags
+MISSING=()
+[[ -z "$PROCESS" ]] && MISSING+=("--process")
+[[ -z "$NAME" ]] && MISSING+=("--name")
+[[ -z "$DESCRIPTION" ]] && MISSING+=("--description")
+[[ -z "$MODEL" ]] && MISSING+=("--model")
+[[ -z "$TOOLS" ]] && MISSING+=("--tools")
+[[ -z "$IDENTITY" ]] && MISSING+=("--identity")
+[[ ${#BEHAVIORS[@]} -eq 0 ]] && MISSING+=("--behavior (at least one)")
+[[ ${#DELIVERABLES[@]} -eq 0 ]] && MISSING+=("--deliverable (at least one)")
+
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  echo "Error: Missing required flags: ${MISSING[*]}"
+  exit 1
+fi
+
+# Validate kebab-case
+if [[ ! "$NAME" =~ ^[a-z][a-z0-9-]*$ ]]; then
+  echo "Error: --name must be kebab-case (lowercase letters, numbers, hyphens). Got: '$NAME'"
+  exit 1
+fi
+
+# Validate model
+VALID_MODEL=false
+for m in "${VALID_MODELS[@]}"; do
+  [[ "$MODEL" == "$m" ]] && VALID_MODEL=true
+done
+if [[ "$VALID_MODEL" != true ]]; then
+  echo "Error: --model must be one of: ${VALID_MODELS[*]}. Got: '$MODEL'"
+  exit 1
+fi
+
+# Validate role
+if [[ "$ROLE" != "orchestrator" && "$ROLE" != "specialist" ]]; then
+  echo "Error: --role must be 'orchestrator' or 'specialist'. Got: '$ROLE'"
+  exit 1
+fi
+
+# If orchestrator, merge required tools
+if [[ "$ROLE" == "orchestrator" ]]; then
+  # Build a set of all tools (user-provided + required orchestrator tools)
+  IFS=',' read -ra USER_TOOLS <<< "$TOOLS"
+  IFS=',' read -ra ORCH_TOOLS <<< "$ORCHESTRATOR_TOOLS"
+  declare -A TOOL_SET=()
+  declare -a TOOL_ORDER=()
+  for t in "${ORCH_TOOLS[@]}"; do
+    t=$(echo "$t" | xargs)  # trim whitespace
+    if [[ -z "${TOOL_SET[$t]+_}" ]]; then
+      TOOL_SET[$t]=1
+      TOOL_ORDER+=("$t")
+    fi
+  done
+  for t in "${USER_TOOLS[@]}"; do
+    t=$(echo "$t" | xargs)
+    if [[ -z "${TOOL_SET[$t]+_}" ]]; then
+      TOOL_SET[$t]=1
+      TOOL_ORDER+=("$t")
+    fi
+  done
+  TOOLS=$(IFS=','; echo "${TOOL_ORDER[*]}" | sed 's/,/, /g')
+fi
+
+# Build target path
+TARGET="processes/${PROCESS}/agents/${NAME}"
+
+# Check directory conflict
+if [[ -d "$TARGET" && "$FORCE" != true ]]; then
+  echo "Error: ${TARGET}/ already exists. Use --force to overwrite."
+  exit 1
+fi
+
+if [[ -d "$TARGET" && "$FORCE" == true ]]; then
+  rm -rf "$TARGET"
+fi
+
+# Convert name to title case for heading
+TITLE=$(echo "$NAME" | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g')
+
+# Format tools as YAML list
+TOOLS_YAML="[$(echo "$TOOLS" | sed 's/,\s*/, /g')]"
+
+FILE_COUNT=0
+
+# Create directory structure
+mkdir -p "${TARGET}/skills"
+mkdir -p "${TARGET}/references"
+mkdir -p "${TARGET}/feedback/backlog"
+
+# Generate agent.md
+{
+  # Frontmatter
+  cat <<EOF
+---
+name: ${NAME}
+description: ${DESCRIPTION}
+model: ${MODEL}
+tools: ${TOOLS_YAML}
+skills:
+  - library/self-evaluation/SKILL.md
+---
+
+# ${TITLE}
+
+## Identity
+
+${IDENTITY}
+
+## Behavior
+
+EOF
+
+  # Behavior rules
+  for behavior in "${BEHAVIORS[@]}"; do
+    echo "- ${behavior}"
+  done
+
+  # Orchestrator-specific behavior
+  if [[ "$ROLE" == "orchestrator" ]]; then
+    cat <<'EOF'
+- Read processes/{process}/process.md on startup
+- Read the orchestration pattern from library/orchestration/ as declared in process.md
+- Read workspace status to determine where to resume
+- Delegate phases to specialist agents via TeamCreate
+- Interface with the user at gates (supervised mode)
+- Update workspace status.yaml continuously
+- Manage the shutdown sequence (downstream feedback, self-eval, finalize status)
+EOF
+  fi
+
+  # Deliverables
+  echo ""
+  echo "## Deliverables"
+  echo ""
+  for deliverable in "${DELIVERABLES[@]}"; do
+    echo "- ${deliverable}"
+  done
+
+  # Known Pitfalls
+  echo ""
+  echo "## Known Pitfalls"
+  echo ""
+  echo "(Populated by feedback over time)"
+} > "${TARGET}/agent.md"
+
+# Fix the orchestrator behavior to use actual process name
+if [[ "$ROLE" == "orchestrator" ]]; then
+  sed -i "s|processes/{process}|processes/${PROCESS}|g" "${TARGET}/agent.md"
+fi
+
+echo "  Created ${TARGET}/agent.md"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+# Generate changelog.md
+cat > "${TARGET}/changelog.md" <<EOF
+# ${TITLE} Changelog
+EOF
+echo "  Created ${TARGET}/changelog.md"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+# Create .gitkeep
+touch "${TARGET}/feedback/backlog/.gitkeep"
+echo "  Created ${TARGET}/feedback/backlog/.gitkeep"
+FILE_COUNT=$((FILE_COUNT + 1))
+
+echo ""
+echo "Created agent '${NAME}' with ${FILE_COUNT} files in ${TARGET}/"
