@@ -1,5 +1,16 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pas-session-start.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "hooks": [
@@ -11,7 +22,27 @@
         ]
       }
     ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/verify-task-completion.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/verify-completion-gate.sh",
+            "timeout": 10
+          }
+        ]
+      },
       {
         "hooks": [
           {

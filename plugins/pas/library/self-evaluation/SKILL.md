@@ -19,7 +19,9 @@ Do NOT activate during work. Do NOT evaluate while producing output. Wait until 
 
 1. Reflect on the session: what went well, what went wrong, what the user corrected
 2. For each observation, determine the signal type (see below)
-3. Write signals to `workspace/{process}/{slug}/feedback/{your-agent-name}.md`
+3. Write signals to `workspace/{process}/{slug}/feedback/{your-agent-name}-{session_id}.md`
+
+   The session ID is provided by the SessionStart hook and recorded in `status.yaml` under `current_session`. If no session ID is available, use your agent name without a suffix.
 4. If nothing went wrong: write "No issues detected." and stop. Do NOT list positives.
 
 ## Signal Types
@@ -83,12 +85,30 @@ Context: {what made this session risky for this behavior}
 - `agent:{name}` — targets agent-level behavior
 - `process:{name}` — targets process-level definition
 
+**Additional target:** `framework:pas` — targets the PAS framework itself (not a specific process artifact). See Framework Feedback Routing below.
+
 **Signal ID format:** `[TYPE-NN]` where NN is sequential within the file (e.g., `[PPU-01]`, `[OQI-01]`, `[OQI-02]`).
 
 **Priority levels:**
 - HIGH: user explicitly corrected this, or output was factually wrong
 - MEDIUM: suboptimal output that the user noticed
 - LOW: minor inefficiency or style issue
+
+## Framework Feedback Routing
+
+When a signal targets the PAS framework itself (not a specific process, agent, or skill), use `Target: framework:pas`. This applies when:
+
+- A PAS convention is missing or broken
+- An orchestration pattern has a structural gap
+- The feedback system itself has a deficiency
+- A library skill needs improvement
+
+**Routing chain:**
+1. Agent writes the signal locally to `workspace/{process}/{slug}/feedback/{agent-name}.md` with `Target: framework:pas`
+2. Agent appends `Route: github-issue` to the signal block
+3. At shutdown, the orchestrator reads all feedback files, finds signals marked `Route: github-issue`, and files them as GitHub issues on the PAS repository
+
+The agent's job is to detect and record the signal. The orchestrator's job is to route it. The COMPLETION GATE (in the orchestration pattern) blocks session completion until all `framework:pas` signals have been filed.
 
 ## Saturation Prevention
 
