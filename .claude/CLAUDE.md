@@ -28,6 +28,13 @@ All PAS plugin development happens on `dev`. Issues get applied here, tested, va
 - `plugins/pas/processes/pas/` — PAS self-management process (orchestrator with 4 skills)
 - `plugins/pas/pas-config.yaml` — Framework configuration (feedback toggle)
 
+## PR Scope
+
+PRs are for direct PAS plugin changes only — files under `plugins/pas/`. Everything else (`library/` mirrors, root `CHANGELOG.md`, `docs/plans/`, workspace artifacts) gets committed directly to `dev`. This keeps PRs focused on reviewable plugin upgrades.
+
+**In a feature branch PR:** only `plugins/pas/` changes.
+**On dev directly:** `library/` mirror syncs, changelogs, plans, workspace, feedback.
+
 ## Conventions
 
 - Every artifact (process, agent, skill) has `feedback/backlog/` and `changelog.md`
