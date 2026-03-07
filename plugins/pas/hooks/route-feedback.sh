@@ -43,11 +43,20 @@ resolve_target_path() {
 
   case "$type" in
     process)
-      echo "$CWD/processes/$value/feedback/backlog"
+      local path="$CWD/processes/$value/feedback/backlog"
+      if [ ! -d "$path" ]; then
+        # Fallback: search in plugins/ for plugin-owned processes
+        path=$(find "$CWD/plugins" -path "*/processes/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+      fi
+      echo "${path:-}"
       ;;
     agent)
       local found
       found=$(find "$CWD/processes" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+      if [ -z "$found" ]; then
+        # Fallback: search in plugins/ for plugin-owned agents
+        found=$(find "$CWD/plugins" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+      fi
       echo "${found:-}"
       ;;
     skill)
@@ -56,7 +65,16 @@ resolve_target_path() {
       if [ -z "$found" ]; then
         found=$(find "$CWD/library" -path "*/$value/feedback/backlog" -type d 2>/dev/null | head -1)
       fi
+      if [ -z "$found" ]; then
+        # Fallback: search in plugins/ for plugin-owned skills
+        found=$(find "$CWD/plugins" -path "*/skills/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+      fi
       echo "${found:-}"
+      ;;
+    framework)
+      # Framework feedback is routed to GitHub issues by the orchestrator at shutdown.
+      # Return empty — the hook does not handle GitHub issue creation.
+      echo ""
       ;;
     *)
       echo ""
@@ -140,9 +158,17 @@ if [ -d "$FEEDBACK_DIR" ]; then
   if [ -n "$FEEDBACK_FILES" ]; then
     echo "$FEEDBACK_FILES" | while read -r feedback_file; do
       [ -f "$feedback_file" ] || continue
+
+      # Skip already-routed files (marked by companion .routed file)
+      if [ -f "${feedback_file}.routed" ]; then
+        continue
+      fi
+
       source_basename=$(basename "$feedback_file" .md)
       parse_and_route_signals "$(cat "$feedback_file")" "$source_basename"
-      rm "$feedback_file"
+
+      # Mark as routed instead of deleting
+      touch "${feedback_file}.routed"
     done
   fi
 fi
