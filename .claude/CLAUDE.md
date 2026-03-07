@@ -1,6 +1,13 @@
 # PAS Framework
 
-This is the canonical development repository for PAS (Process-Agent-Skill). All development happens here, users install from here, and this is the single source of truth for the framework. PAS is distributed as a Claude Code plugin.
+This is the canonical repository for PAS (Process-Agent-Skill). Users install from here. PAS is distributed as a Claude Code plugin.
+
+## Branch Structure
+
+- `main` — Plugin distribution (clean, release-only)
+- `dev` — Development workspace (pas-development process, plans, workspace, feedback)
+
+Development happens on `dev`. Plugin changes get PR'd to `main`. `main` never merges from `dev`.
 
 ## Repo Layout
 
@@ -22,3 +29,4 @@ This is the canonical development repository for PAS (Process-Agent-Skill). All 
 - Skills follow Agent Skills spec (SKILL.md format with YAML frontmatter + progressive disclosure markdown)
 - Agents are always process-local (no shared agents across processes)
 - Skills are local-first; only graduate to `library/` when reused in 2+ places
+- PAS framework feedback always goes to a GitHub issue — no exceptions
