@@ -47,7 +47,7 @@ ACTIVE_WORKSPACE=$(dirname "$ACTIVE_STATUS")
 FEEDBACK_DIR="$ACTIVE_WORKSPACE/feedback"
 
 # Check: are there any pending phases?
-PENDING_COUNT=$(grep -c '^\s*status: pending' "$ACTIVE_STATUS" 2>/dev/null || echo "0")
+PENDING_COUNT=$(grep -c '^\s*status: pending' "$ACTIVE_STATUS" 2>/dev/null) || PENDING_COUNT=0
 
 # If phases are still pending, work is in progress — don't block
 if [ "$PENDING_COUNT" -gt 0 ]; then
