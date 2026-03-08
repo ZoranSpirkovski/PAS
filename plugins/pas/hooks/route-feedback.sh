@@ -14,24 +14,15 @@ if [ -z "$CWD" ]; then
   exit 0
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/workspace.sh"
+
 # --- Functions ---
 
 find_active_workspace() {
-  local workspace_dir="$CWD/workspace"
-  if [ ! -d "$workspace_dir" ]; then
-    return 1
-  fi
-
-  local active_status
-  active_status=$(find "$workspace_dir" -name "status.yaml" -print 2>/dev/null | while read -r f; do
-    echo "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null || echo 0) $f"
-  done | sort -rn | head -1 | awk '{print $2}')
-
-  if [ -z "$active_status" ]; then
-    return 1
-  fi
-
-  dirname "$active_status"
+  local status_path
+  status_path=$(find_active_workspace_status "$CWD/workspace") || return 1
+  dirname "$status_path"
 }
 
 resolve_target_path() {
@@ -191,9 +182,11 @@ if [ -d "$FEEDBACK_DIR" ]; then
   if [ -n "$FEEDBACK_FILES" ]; then
     echo "$FEEDBACK_FILES" | while read -r feedback_file; do
       [ -f "$feedback_file" ] || continue
+      # Skip already-routed files
+      [ -f "${feedback_file}.routed" ] && continue
       source_basename=$(basename "$feedback_file" .md)
       parse_and_route_signals "$(cat "$feedback_file")" "$source_basename"
-      rm "$feedback_file"
+      touch "${feedback_file}.routed"
     done
   fi
 fi

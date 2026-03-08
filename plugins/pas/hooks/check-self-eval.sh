@@ -22,19 +22,16 @@ if [ "$FEEDBACK_STATUS" != "enabled" ]; then
   exit 0
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/workspace.sh"
+
 # Find active workspace (sort-by-mtime approach)
 WORKSPACE_DIR="$CWD/workspace"
 if [ ! -d "$WORKSPACE_DIR" ]; then
   exit 0
 fi
 
-ACTIVE_STATUS=$(find "$WORKSPACE_DIR" -name "status.yaml" -print 2>/dev/null | while read -r f; do
-  echo "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null || echo 0) $f"
-done | sort -rn | head -1 | awk '{print $2}')
-
-if [ -z "$ACTIVE_STATUS" ]; then
-  exit 0
-fi
+ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR") || exit 0
 
 ACTIVE_WORKSPACE=$(dirname "$ACTIVE_STATUS")
 FEEDBACK_DIR="$ACTIVE_WORKSPACE/feedback"
