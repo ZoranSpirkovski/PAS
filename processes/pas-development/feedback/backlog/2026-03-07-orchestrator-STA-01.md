@@ -1,3 +1,5 @@
+Status: ACKNOWLEDGED (cycle 5 — workspace lifecycle confirmed working)
+
 [STA-01]
 Target: process:pas-development
 Strength: OBSERVED

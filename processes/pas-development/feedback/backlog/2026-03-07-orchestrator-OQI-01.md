@@ -1,3 +1,5 @@
+Status: RESOLVED (cycle 5 — HARD REQUIREMENT in orchestration patterns + SessionStart hook)
+
 [OQI-01]
 Target: process:pas-development
 Degraded: Orchestrator planned implementation without workspace lifecycle — 3/3 sessions now where process lifecycle was not followed autonomously

@@ -1,3 +1,5 @@
+Status: RESOLVED (cycle 5 — SessionStart hook injects lifecycle context)
+
 [OQI-03]
 Target: process:pas-development
 Degraded: Discovery phase skipped — orchestrator jumped to proposing solutions
