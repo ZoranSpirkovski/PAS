@@ -8,12 +8,13 @@ modes: [supervised, autonomous]
 
 input:
   - directive: optional owner directive for what to work on this cycle
+  - roadmap: docs/plans/2026-03-08-six-month-roadmap.md (consulted when no directive given)
 
 phases:
   discovery:
     agent: [feedback-analyst, community-manager, framework-architect, dx-specialist, ecosystem-analyst]
     pattern: discussion
-    input: directive OR accumulated feedback signals + open GitHub issues
+    input: directive OR active roadmap milestone OR accumulated feedback signals + open GitHub issues
     output: workspace/pas-development/{slug}/discovery/priorities.md
     gate: product owner approves priorities
 
@@ -50,7 +51,7 @@ A dedicated process for evolving the PAS framework. Uses PAS's own constructs (p
 
 ## Phases
 
-1. **Discovery** (discussion pattern): The Feedback Analyst presents internal signal analysis and the Community Manager presents GitHub issue triage. Framework Architect, DX Specialist, and Ecosystem Analyst contribute their perspectives. The team debates and converges on priorities. Alternatively, the product owner injects a directive and the team pressure-tests and enriches it. Orchestrator moderates and synthesizes.
+1. **Discovery** (discussion pattern): The Feedback Analyst presents internal signal analysis and the Community Manager presents GitHub issue triage. Framework Architect, DX Specialist, and Ecosystem Analyst contribute their perspectives. The team debates and converges on priorities. Alternatively, the product owner injects a directive and the team pressure-tests and enriches it. Orchestrator moderates and synthesizes. **DX audit cadence:** Every 3rd cycle (or when significant user-facing changes have accumulated), the DX Specialist performs a full DX audit of `plugins/pas/` as part of discovery.
 
 2. **Planning** (solo): The Framework Architect takes approved priorities and produces a scoped implementation plan — what changes to which files, dependencies between changes, and what can be parallelized in Execution.
 
