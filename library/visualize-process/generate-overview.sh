@@ -107,7 +107,64 @@ for i in "${!PHASE_NAMES[@]}"; do
 "
 done
 
-# --- Build agent cards HTML ---
+# --- First pass: collect all library skills and count usage ---
+declare -A LIB_SKILL_NAMES LIB_SKILL_DESCS LIB_SKILL_COUNT LIB_SKILL_AGENTS
+for agent_dir in "${AGENT_DIRS[@]}"; do
+  afile="${agent_dir}agent.md"
+  aname=$(parse_yaml_value "$afile" "name")
+  while IFS= read -r skill_path; do
+    skill_path=$(echo "$skill_path" | sed 's/^[[:space:]-]*//' | sed 's/[[:space:]]*$//')
+    [[ -z "$skill_path" ]] && continue
+    [[ "$skill_path" != *library/* ]] && continue
+
+    skill_file=""
+    candidate="${PROCESS_DIR}/../../${skill_path}"
+    [[ -f "$candidate" ]] && skill_file="$candidate"
+
+    sname="" sdesc=""
+    if [[ -n "$skill_file" ]] && [[ -f "$skill_file" ]]; then
+      sname=$(parse_yaml_value "$skill_file" "name")
+      sdesc=$(parse_yaml_value "$skill_file" "description")
+    else
+      sname=$(basename "$(dirname "$skill_path")" 2>/dev/null || echo "$skill_path")
+    fi
+    sdesc=$(echo "$sdesc" | sed 's/^Use when //' | sed 's/^Use at /At /')
+
+    LIB_SKILL_NAMES["$skill_path"]="$sname"
+    LIB_SKILL_DESCS["$skill_path"]="$sdesc"
+    LIB_SKILL_COUNT["$skill_path"]=$(( ${LIB_SKILL_COUNT["$skill_path"]:-0} + 1 ))
+    if [[ -n "${LIB_SKILL_AGENTS["$skill_path"]:-}" ]]; then
+      LIB_SKILL_AGENTS["$skill_path"]+=", $aname"
+    else
+      LIB_SKILL_AGENTS["$skill_path"]="$aname"
+    fi
+  done < <(sed -n '/^---$/,/^---$/p' "$afile" | sed -n '/^skills:/,/^[a-z]/p' | { grep '^\s*-' || true; } | sed 's/^[[:space:]-]*//')
+done
+
+# Shared = library skills used by 2+ agents
+declare -A SHARED_SKILLS
+for key in "${!LIB_SKILL_COUNT[@]}"; do
+  [[ ${LIB_SKILL_COUNT["$key"]} -ge 2 ]] && SHARED_SKILLS["$key"]=1
+done
+
+# --- Build shared skills HTML ---
+SHARED_HTML=""
+shared_count=0
+for key in "${!SHARED_SKILLS[@]}"; do
+  sname="${LIB_SKILL_NAMES[$key]}"
+  sdesc="${LIB_SKILL_DESCS[$key]}"
+  agents="${LIB_SKILL_AGENTS[$key]}"
+
+  SHARED_HTML+="      <div class=\"shared-skill-card\">
+        <div class=\"shared-skill-name\">$(esc "$sname")</div>
+        <div class=\"shared-skill-desc\">$(esc "$sdesc")</div>
+        <div class=\"shared-skill-agents\">Used by $(esc "$agents")</div>
+      </div>
+"
+  shared_count=$((shared_count + 1))
+done
+
+# --- Build agent cards HTML (excluding shared skills) ---
 AGENTS_HTML=""
 for agent_dir in "${AGENT_DIRS[@]}"; do
   afile="${agent_dir}agent.md"
@@ -115,7 +172,6 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
   adesc=$(parse_yaml_value "$afile" "description")
   amodel=$(parse_yaml_value "$afile" "model")
 
-  # Model tier class
   model_class="model-default"
   case "$amodel" in
     *opus*) model_class="model-opus" ;;
@@ -135,6 +191,11 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
   while IFS= read -r skill_path; do
     skill_path=$(echo "$skill_path" | sed 's/^[[:space:]-]*//' | sed 's/[[:space:]]*$//')
     [[ -z "$skill_path" ]] && continue
+
+    # Skip shared library skills — they go in the shared section
+    if [[ -n "${SHARED_SKILLS["$skill_path"]:-}" ]]; then
+      continue
+    fi
 
     lib_class=""
     [[ "$skill_path" == *library/* ]] && lib_class=" library"
@@ -156,7 +217,6 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
       sname=$(basename "$(dirname "$skill_path")" 2>/dev/null || echo "$skill_path")
     fi
 
-    # Clean description: remove "Use when" prefix for brevity
     sdesc=$(echo "$sdesc" | sed 's/^Use when //' | sed 's/^Use at /At /')
 
     SKILLS_HTML+="          <div class=\"skill-item${lib_class}\">
@@ -167,6 +227,13 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
     skill_count=$((skill_count + 1))
   done < <(sed -n '/^---$/,/^---$/p' "$afile" | sed -n '/^skills:/,/^[a-z]/p' | { grep '^\s*-' || true; } | sed 's/^[[:space:]-]*//')
 
+  SKILL_SECTION=""
+  if [[ $skill_count -gt 0 ]]; then
+    SKILL_SECTION="        <div class=\"skill-list\">
+          <div class=\"skill-list-title\">${skill_count} skill$( [[ $skill_count -ne 1 ]] && echo s)</div>
+${SKILLS_HTML}        </div>"
+  fi
+
   AGENTS_HTML+="      <div class=\"agent-card\">
         <div class=\"agent-header\">
           <h3>$(esc "$(titlecase "$aname")")</h3>
@@ -174,9 +241,7 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
         </div>
         <p class=\"agent-desc\">$(esc "$adesc")</p>
         <div class=\"agent-tools\">${TOOLS_HTML}</div>
-        <div class=\"skill-list\">
-          <div class=\"skill-list-title\">${skill_count} skills</div>
-${SKILLS_HTML}        </div>
+${SKILL_SECTION}
       </div>
 "
 done
@@ -201,8 +266,14 @@ done
 ORCH_DESC=$(orch_description "$PROC_ORCH")
 
 # --- Section nav items ---
-SECTION_IDS=("phases" "agents" "modes" "orchestration")
-SECTION_LABELS=("Phases" "Agents" "Modes" "Orchestration")
+SECTION_IDS=("phases" "agents")
+SECTION_LABELS=("Phases" "Agents")
+if [[ $shared_count -gt 0 ]]; then
+  SECTION_IDS+=("shared-skills")
+  SECTION_LABELS+=("Shared Skills")
+fi
+SECTION_IDS+=("modes" "orchestration")
+SECTION_LABELS+=("Modes" "Orchestration")
 
 NAV_HTML=""
 for i in "${!SECTION_IDS[@]}"; do
@@ -319,6 +390,7 @@ cat >> "$OUT" << 'HTMLEOF'
       height: var(--nav-height);
       display: flex;
       align-items: center;
+      justify-content: center;
       padding: 0 2rem;
       gap: 0.25rem;
       overflow-x: auto;
@@ -620,6 +692,38 @@ cat >> "$OUT" << 'HTMLEOF'
       font-size: 0.85rem;
       color: var(--text-secondary);
       line-height: 1.55;
+    }
+
+    /* --- Shared Skills --- */
+    .shared-skills-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.75rem;
+    }
+    .shared-skill-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.15rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .shared-skill-name {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--purple);
+      margin-bottom: 0.25rem;
+    }
+    .shared-skill-desc {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      margin-bottom: 0.4rem;
+    }
+    .shared-skill-agents {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.68rem;
+      color: var(--text-muted);
     }
 
     /* --- Footer --- */
