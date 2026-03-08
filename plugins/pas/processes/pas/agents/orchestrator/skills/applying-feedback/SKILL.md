@@ -73,7 +73,7 @@ When signals conflict with each other:
 Is the feedback clear enough to act on?
 
 - Apply Occam's razor: choose the fix with the fewest assumptions
-- If ambiguous: ask the user for crystal clarity before changing anything
+- If ambiguous: ask the user to clarify before changing anything
 - Never guess at what the user wants. Better to ask than to apply a wrong fix.
 
 ### 8. Apply with Consolidation-First Approach

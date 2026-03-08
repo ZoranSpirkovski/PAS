@@ -1,5 +1,17 @@
 # Orchestration Library Changelog
 
+## 2026-03-08 — Extract shared lifecycle protocol + ready-handshake
+
+Triggered by: Cycle 9 Milestone 1 — orchestration pattern duplication (~300 of 578 lines identical)
+Pattern: Every bug fix applied 4x across patterns; agent spawn timing race unfixed for 3 cycles
+Changes:
+- Created `lifecycle.md`: shared protocol for workspace creation, task creation, status tracking, ready-handshake, shutdown sequence, completion gate, session continuity, resumability
+- hub-and-spoke.md: replaced duplicated lifecycle sections with references to lifecycle.md (250 -> ~140 lines). Added ready-handshake to spawn prompt requirements.
+- discussion.md: replaced duplicated lifecycle sections with references to lifecycle.md (122 -> ~60 lines). Added ready-handshake to spawn step.
+- solo.md: replaced duplicated lifecycle sections with references to lifecycle.md (92 -> ~40 lines). No ready-handshake (no agents spawned).
+- sequential-agents.md: replaced duplicated lifecycle sections with references to lifecycle.md (114 -> ~65 lines). Added ready-handshake to spawn and handoff steps.
+- Ready-handshake protocol: agents send `READY: {name}` after spawn, orchestrator waits before dispatching work. Mitigates TeamCreate spawn timing race.
+
 ## 2026-03-07 — Add task creation and hook enforcement references
 
 Triggered by: GitHub issue #7 — orchestrator does not self-enforce process lifecycle
