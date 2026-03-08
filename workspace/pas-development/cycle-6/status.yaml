@@ -81,6 +81,7 @@ post_release_iteration:
     11. DONE: Phase gates pinned to card bottom
     12. DONE: Skill names fixed-width for consistent alignment
     13. DONE: Top-aligned skill sections in agent cards
+    14. DONE: Dogfood PAS creation scripts — updated implementation-planning skill, framework-architect agent, and process.md to use pas-create-* scripts for new artifacts
 
 sessions:
   - id: cycle-6-s1
@@ -91,3 +92,8 @@ sessions:
     started_at: 2026-03-08T13:30:00Z
     completed_at: 2026-03-08T14:00:00Z
     feedback_collected: true
+  - id: cycle-6-s3
+    started_at: 2026-03-08T15:00:00Z
+    completed_at: 2026-03-08T15:15:00Z
+    feedback_collected: false
+    notes: "Dogfood pas-create-* scripts into pas-development process (validation gap from cycle-6)"
