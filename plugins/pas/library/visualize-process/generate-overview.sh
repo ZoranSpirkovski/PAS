@@ -38,7 +38,15 @@ esc() {
 }
 
 titlecase() {
-  echo "$1" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1'
+  echo "$1" | sed 's/-/ /g' | awk '{
+    for(i=1;i<=NF;i++) {
+      w=tolower($i)
+      if (w=="dx" || w=="qa" || w=="pr" || w=="ci" || w=="cd" || w=="api" || w=="ui" || w=="ux")
+        $i=toupper($i)
+      else
+        $i=toupper(substr($i,1,1)) tolower(substr($i,2))
+    }
+  }1'
 }
 
 orch_description() {
@@ -85,23 +93,29 @@ PHASES_HTML=""
 for i in "${!PHASE_NAMES[@]}"; do
   phase="${PHASE_NAMES[$i]}"
   agents_raw=$(parse_phase_field "$PROCESS_DIR/process.md" "$phase" "agent")
-  agents_clean=$(echo "$agents_raw" | tr -d '[]' | sed 's/,/, /g')
+  # Titlecase each agent name
+  agents_tc=""
+  for agent_name in $(echo "$agents_raw" | tr -d '[]' | tr ',' ' '); do
+    agent_name=$(echo "$agent_name" | xargs)
+    [[ -z "$agent_name" ]] && continue
+    [[ -n "$agents_tc" ]] && agents_tc+=", "
+    agents_tc+="$(titlecase "$agent_name")"
+  done
   pattern=$(parse_phase_field "$PROCESS_DIR/process.md" "$phase" "pattern")
-  [[ -z "$pattern" ]] && pattern="default"
   output=$(parse_phase_field "$PROCESS_DIR/process.md" "$phase" "output")
   gate=$(parse_phase_field "$PROCESS_DIR/process.md" "$phase" "gate")
 
-  if [[ $i -gt 0 ]]; then
-    PHASES_HTML+='      <div class="phase-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-'
+  PATTERN_ROW=""
+  if [[ -n "$pattern" ]]; then
+    PATTERN_ROW="        <div class=\"phase-detail\"><span class=\"phase-label\">Pattern</span> $(esc "$pattern")</div>
+"
   fi
 
   PHASES_HTML+="      <div class=\"phase-card\">
         <div class=\"phase-number\">$((i+1))</div>
         <h3>$(esc "$(titlecase "$phase")")</h3>
-        <div class=\"phase-detail\"><span class=\"phase-label\">Agents</span> $(esc "$agents_clean")</div>
-        <div class=\"phase-detail\"><span class=\"phase-label\">Pattern</span> $(esc "$pattern")</div>
-        <div class=\"phase-detail\"><span class=\"phase-label\">Output</span> $(esc "$output")</div>
+        <div class=\"phase-detail\"><span class=\"phase-label\">Agents</span> $(esc "$agents_tc")</div>
+${PATTERN_ROW}        <div class=\"phase-detail\"><span class=\"phase-label\">Output</span> $(esc "$output")</div>
         <div class=\"phase-gate\">$(esc "$gate")</div>
       </div>
 "
@@ -133,10 +147,11 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
     LIB_SKILL_NAMES["$skill_path"]="$sname"
     LIB_SKILL_DESCS["$skill_path"]="$sdesc"
     LIB_SKILL_COUNT["$skill_path"]=$(( ${LIB_SKILL_COUNT["$skill_path"]:-0} + 1 ))
+    aname_tc=$(titlecase "$aname")
     if [[ -n "${LIB_SKILL_AGENTS["$skill_path"]:-}" ]]; then
-      LIB_SKILL_AGENTS["$skill_path"]+=", $aname"
+      LIB_SKILL_AGENTS["$skill_path"]+=", $aname_tc"
     else
-      LIB_SKILL_AGENTS["$skill_path"]="$aname"
+      LIB_SKILL_AGENTS["$skill_path"]="$aname_tc"
     fi
   done < <(sed -n '/^---$/,/^---$/p' "$afile" | sed -n '/^skills:/,/^[a-z]/p' | { grep '^\s*-' || true; } | sed 's/^[[:space:]-]*//')
 done
@@ -219,9 +234,11 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
 
     sdesc=$(echo "$sdesc" | sed 's/^Use when //' | sed 's/^Use at /At /')
 
+    desc_span=""
+    [[ -n "$sdesc" ]] && desc_span="<span class=\"skill-desc\">$(esc "$sdesc")</span>"
     SKILLS_HTML+="          <div class=\"skill-item${lib_class}\">
             <span class=\"skill-name\">$(esc "$sname")</span>
-            <span class=\"skill-desc\">$(esc "$sdesc")</span>
+            ${desc_span}
           </div>
 "
     skill_count=$((skill_count + 1))
@@ -230,7 +247,7 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
   SKILL_SECTION=""
   if [[ $skill_count -gt 0 ]]; then
     SKILL_SECTION="        <div class=\"skill-list\">
-          <div class=\"skill-list-title\">${skill_count} skill$( [[ $skill_count -ne 1 ]] && echo s)</div>
+          <div class=\"skill-list-title\">${skill_count} skill$( [[ $skill_count -ne 1 ]] && echo s || true)</div>
 ${SKILLS_HTML}        </div>"
   fi
 
@@ -279,6 +296,22 @@ NAV_HTML=""
 for i in "${!SECTION_IDS[@]}"; do
   NAV_HTML+="<a href=\"#${SECTION_IDS[$i]}\" class=\"nav-link\" data-section=\"${SECTION_IDS[$i]}\">${SECTION_LABELS[$i]}</a>"
 done
+
+# --- Build conditional shared skills section ---
+SHARED_SECTION=""
+if [[ $shared_count -gt 0 ]]; then
+  SHARED_SECTION="  <div class=\"section\" id=\"shared-skills\">
+    <div class=\"section-header\" onclick=\"toggleSection(this)\">
+      <span class=\"section-title\">Shared Skills</span>
+      <span class=\"section-toggle\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 6l4 4 4-4\"/></svg></span>
+    </div>
+    <div class=\"section-body\">
+      <div class=\"shared-skills-grid\">
+${SHARED_HTML}      </div>
+    </div>
+  </div>
+"
+fi
 
 # --- Write HTML ---
 OUT="$PROCESS_DIR/overview.html"
@@ -468,20 +501,19 @@ cat >> "$OUT" << 'HTMLEOF'
 
     /* --- Phase Flow --- */
     .phase-flow {
-      display: flex;
-      align-items: stretch;
-      gap: 0;
-      padding: 0.25rem 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
     }
     .phase-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 1.25rem 1.15rem;
-      flex: 1;
+      padding: 1.25rem;
       box-shadow: var(--shadow);
-      position: relative;
       word-break: break-word;
+      display: flex;
+      flex-direction: column;
     }
     .phase-number {
       font-family: 'Poppins', sans-serif;
@@ -489,52 +521,43 @@ cat >> "$OUT" << 'HTMLEOF'
       font-weight: 600;
       width: 22px;
       height: 22px;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       border-radius: 50%;
       background: var(--accent-soft);
       color: var(--accent);
-      margin-bottom: 0.6rem;
+      margin-bottom: 0.5rem;
     }
     .phase-card h3 {
       font-family: 'Poppins', sans-serif;
       font-size: 0.88rem;
       font-weight: 600;
-      margin-bottom: 0.6rem;
-      text-transform: capitalize;
+      margin-bottom: 0.5rem;
     }
     .phase-detail {
-      font-size: 0.78rem;
+      font-size: 0.8rem;
       color: var(--text-secondary);
-      margin-bottom: 0.3rem;
-      line-height: 1.45;
+      margin-bottom: 0.25rem;
+      line-height: 1.5;
     }
     .phase-label {
       font-family: 'Poppins', sans-serif;
-      font-size: 0.68rem;
+      font-size: 0.7rem;
       font-weight: 500;
       color: var(--text-muted);
       display: block;
       margin-bottom: 0.1rem;
     }
     .phase-gate {
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       color: var(--accent);
-      margin-top: 0.75rem;
-      padding-top: 0.6rem;
+      margin-top: auto;
+      padding-top: 0.5rem;
       border-top: 1px solid var(--border-light);
       font-family: 'Poppins', sans-serif;
       font-weight: 500;
     }
-    .phase-arrow {
-      display: flex;
-      align-items: center;
-      padding: 0 0.4rem;
-      color: var(--text-muted);
-      flex-shrink: 0;
-    }
-    .phase-arrow svg { width: 20px; height: 20px; }
 
     /* --- Agent Cards --- */
     .agent-grid {
@@ -601,7 +624,6 @@ cat >> "$OUT" << 'HTMLEOF'
 
     /* --- Skills --- */
     .skill-list {
-      margin-top: auto;
       padding-top: 0.75rem;
       border-top: 1px solid var(--border-light);
     }
@@ -625,6 +647,7 @@ cat >> "$OUT" << 'HTMLEOF'
       font-family: 'Poppins', sans-serif;
       font-weight: 500;
       font-size: 0.75rem;
+      width: 8.5rem;
       flex-shrink: 0;
     }
     .skill-item.library .skill-name { color: var(--purple); }
@@ -698,7 +721,7 @@ cat >> "$OUT" << 'HTMLEOF'
     .shared-skills-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 0.75rem;
+      gap: 1rem;
     }
     .shared-skill-card {
       background: var(--surface);
@@ -744,19 +767,10 @@ cat >> "$OUT" << 'HTMLEOF'
       .container { padding: 1.5rem 1.25rem 3rem; }
       .section { margin-bottom: 2.25rem; }
 
-      .phase-flow {
-        flex-direction: column;
-        gap: 0;
-      }
-      .phase-arrow {
-        justify-content: center;
-        padding: 0.35rem 0;
-        transform: rotate(90deg);
-      }
-      .phase-card { flex: none; }
-
+      .phase-flow { grid-template-columns: 1fr; }
       .agent-grid { grid-template-columns: 1fr; }
       .mode-grid { grid-template-columns: 1fr; }
+      .shared-skills-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 480px) {
@@ -780,8 +794,8 @@ cat >> "$OUT" << HTMLEOF
     <div class="meta">
       <span class="meta-tag">v$(esc "$PROC_VERSION")</span>
       <span class="meta-tag">$(esc "$PROC_ORCH")</span>
-      <span class="meta-tag">${AGENT_COUNT} agent$( [[ $AGENT_COUNT -ne 1 ]] && echo s)</span>
-      <span class="meta-tag">${PHASE_COUNT} phase$( [[ $PHASE_COUNT -ne 1 ]] && echo s)</span>
+      <span class="meta-tag">${AGENT_COUNT} agent$( [[ $AGENT_COUNT -ne 1 ]] && echo s || true)</span>
+      <span class="meta-tag">${PHASE_COUNT} phase$( [[ $PHASE_COUNT -ne 1 ]] && echo s || true)</span>
     </div>
   </div>
 </div>
@@ -814,7 +828,7 @@ ${AGENTS_HTML}      </div>
     </div>
   </div>
 
-  <div class="section" id="modes">
+${SHARED_SECTION}  <div class="section" id="modes">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-title">Modes</span>
       <span class="section-toggle"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg></span>

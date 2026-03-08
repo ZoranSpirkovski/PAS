@@ -98,6 +98,7 @@
       height: var(--nav-height);
       display: flex;
       align-items: center;
+      justify-content: center;
       padding: 0 2rem;
       gap: 0.25rem;
       overflow-x: auto;
@@ -175,20 +176,19 @@
 
     /* --- Phase Flow --- */
     .phase-flow {
-      display: flex;
-      align-items: stretch;
-      gap: 0;
-      padding: 0.25rem 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
     }
     .phase-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 1.25rem 1.15rem;
-      flex: 1;
+      padding: 1.25rem;
       box-shadow: var(--shadow);
-      position: relative;
       word-break: break-word;
+      display: flex;
+      flex-direction: column;
     }
     .phase-number {
       font-family: 'Poppins', sans-serif;
@@ -196,52 +196,43 @@
       font-weight: 600;
       width: 22px;
       height: 22px;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       border-radius: 50%;
       background: var(--accent-soft);
       color: var(--accent);
-      margin-bottom: 0.6rem;
+      margin-bottom: 0.5rem;
     }
     .phase-card h3 {
       font-family: 'Poppins', sans-serif;
       font-size: 0.88rem;
       font-weight: 600;
-      margin-bottom: 0.6rem;
-      text-transform: capitalize;
+      margin-bottom: 0.5rem;
     }
     .phase-detail {
-      font-size: 0.78rem;
+      font-size: 0.8rem;
       color: var(--text-secondary);
-      margin-bottom: 0.3rem;
-      line-height: 1.45;
+      margin-bottom: 0.25rem;
+      line-height: 1.5;
     }
     .phase-label {
       font-family: 'Poppins', sans-serif;
-      font-size: 0.68rem;
+      font-size: 0.7rem;
       font-weight: 500;
       color: var(--text-muted);
       display: block;
       margin-bottom: 0.1rem;
     }
     .phase-gate {
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       color: var(--accent);
-      margin-top: 0.75rem;
-      padding-top: 0.6rem;
+      margin-top: auto;
+      padding-top: 0.5rem;
       border-top: 1px solid var(--border-light);
       font-family: 'Poppins', sans-serif;
       font-weight: 500;
     }
-    .phase-arrow {
-      display: flex;
-      align-items: center;
-      padding: 0 0.4rem;
-      color: var(--text-muted);
-      flex-shrink: 0;
-    }
-    .phase-arrow svg { width: 20px; height: 20px; }
 
     /* --- Agent Cards --- */
     .agent-grid {
@@ -308,7 +299,6 @@
 
     /* --- Skills --- */
     .skill-list {
-      margin-top: auto;
       padding-top: 0.75rem;
       border-top: 1px solid var(--border-light);
     }
@@ -332,6 +322,7 @@
       font-family: 'Poppins', sans-serif;
       font-weight: 500;
       font-size: 0.75rem;
+      width: 8.5rem;
       flex-shrink: 0;
     }
     .skill-item.library .skill-name { color: var(--purple); }
@@ -401,6 +392,38 @@
       line-height: 1.55;
     }
 
+    /* --- Shared Skills --- */
+    .shared-skills-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .shared-skill-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.15rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .shared-skill-name {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--purple);
+      margin-bottom: 0.25rem;
+    }
+    .shared-skill-desc {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      margin-bottom: 0.4rem;
+    }
+    .shared-skill-agents {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+
     /* --- Footer --- */
     .footer {
       text-align: center;
@@ -419,19 +442,10 @@
       .container { padding: 1.5rem 1.25rem 3rem; }
       .section { margin-bottom: 2.25rem; }
 
-      .phase-flow {
-        flex-direction: column;
-        gap: 0;
-      }
-      .phase-arrow {
-        justify-content: center;
-        padding: 0.35rem 0;
-        transform: rotate(90deg);
-      }
-      .phase-card { flex: none; }
-
+      .phase-flow { grid-template-columns: 1fr; }
       .agent-grid { grid-template-columns: 1fr; }
       .mode-grid { grid-template-columns: 1fr; }
+      .shared-skills-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 480px) {
@@ -458,7 +472,7 @@
 </div>
 
 <nav class="section-nav">
-  <a href="#phases" class="nav-link" data-section="phases">Phases</a><a href="#agents" class="nav-link" data-section="agents">Agents</a><a href="#modes" class="nav-link" data-section="modes">Modes</a><a href="#orchestration" class="nav-link" data-section="orchestration">Orchestration</a>
+  <a href="#phases" class="nav-link" data-section="phases">Phases</a><a href="#agents" class="nav-link" data-section="agents">Agents</a><a href="#shared-skills" class="nav-link" data-section="shared-skills">Shared Skills</a><a href="#modes" class="nav-link" data-section="modes">Modes</a><a href="#orchestration" class="nav-link" data-section="orchestration">Orchestration</a>
 </nav>
 
 <div class="container">
@@ -473,44 +487,36 @@
       <div class="phase-card">
         <div class="phase-number">1</div>
         <h3>Discovery</h3>
-        <div class="phase-detail"><span class="phase-label">Agents</span> feedback-analyst,  community-manager,  framework-architect,  dx-specialist,  ecosystem-analyst</div>
+        <div class="phase-detail"><span class="phase-label">Agents</span> Feedback Analyst, Community Manager, Framework Architect, DX Specialist, Ecosystem Analyst</div>
         <div class="phase-detail"><span class="phase-label">Pattern</span> discussion</div>
         <div class="phase-detail"><span class="phase-label">Output</span> workspace/pas-development/{slug}/discovery/priorities.md</div>
         <div class="phase-gate">product owner approves priorities</div>
       </div>
-      <div class="phase-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
       <div class="phase-card">
         <div class="phase-number">2</div>
         <h3>Planning</h3>
-        <div class="phase-detail"><span class="phase-label">Agents</span> framework-architect</div>
-        <div class="phase-detail"><span class="phase-label">Pattern</span> default</div>
+        <div class="phase-detail"><span class="phase-label">Agents</span> Framework Architect</div>
         <div class="phase-detail"><span class="phase-label">Output</span> workspace/pas-development/{slug}/planning/implementation-plan.md</div>
         <div class="phase-gate">product owner approves plan</div>
       </div>
-      <div class="phase-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
       <div class="phase-card">
         <div class="phase-number">3</div>
         <h3>Execution</h3>
-        <div class="phase-detail"><span class="phase-label">Agents</span> framework-architect,  dx-specialist,  feedback-analyst,  community-manager</div>
-        <div class="phase-detail"><span class="phase-label">Pattern</span> default</div>
+        <div class="phase-detail"><span class="phase-label">Agents</span> Framework Architect, DX Specialist, Feedback Analyst, Community Manager</div>
         <div class="phase-detail"><span class="phase-label">Output</span> workspace/pas-development/{slug}/execution/changes/</div>
         <div class="phase-gate">product owner reviews changes</div>
       </div>
-      <div class="phase-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
       <div class="phase-card">
         <div class="phase-number">4</div>
         <h3>Validation</h3>
-        <div class="phase-detail"><span class="phase-label">Agents</span> qa-engineer</div>
-        <div class="phase-detail"><span class="phase-label">Pattern</span> default</div>
+        <div class="phase-detail"><span class="phase-label">Agents</span> QA Engineer</div>
         <div class="phase-detail"><span class="phase-label">Output</span> workspace/pas-development/{slug}/validation/report.md</div>
         <div class="phase-gate">product owner approves release</div>
       </div>
-      <div class="phase-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
       <div class="phase-card">
         <div class="phase-number">5</div>
         <h3>Release</h3>
-        <div class="phase-detail"><span class="phase-label">Agents</span> community-manager</div>
-        <div class="phase-detail"><span class="phase-label">Pattern</span> default</div>
+        <div class="phase-detail"><span class="phase-label">Agents</span> Community Manager</div>
         <div class="phase-detail"><span class="phase-label">Output</span> PR URL</div>
         <div class="phase-gate">product owner confirms merge</div>
       </div>
@@ -533,7 +539,7 @@
         <p class="agent-desc">Manages GitHub interactions — triages issues, engages with contributors, and opens PRs for completed work</p>
         <div class="agent-tools"><span class="badge badge-tool">Read</span><span class="badge badge-tool">Glob</span><span class="badge badge-tool">Grep</span><span class="badge badge-tool">Bash</span></div>
         <div class="skill-list">
-          <div class="skill-list-title">4 skills</div>
+          <div class="skill-list-title">3 skills</div>
           <div class="skill-item">
             <span class="skill-name">issue-triage</span>
             <span class="skill-desc">triaging open GitHub issues for the PAS framework. Reads issues, classifies them, assesses priority, and produces a triage report for Discovery.</span>
@@ -546,28 +552,20 @@
             <span class="skill-name">pr-management</span>
             <span class="skill-desc">Use in the Release phase to commit, branch, PR, and sync. Only plugin files go to main — everything else stays on dev.</span>
           </div>
-          <div class="skill-item library">
-            <span class="skill-name">self-evaluation</span>
-            <span class="skill-desc">At agent shutdown to write structured improvement signals. Carried by all agents when feedback is enabled. Zero cost during productive work.</span>
-          </div>
         </div>
       </div>
       <div class="agent-card">
         <div class="agent-header">
-          <h3>Dx Specialist</h3>
+          <h3>DX Specialist</h3>
           <span class="badge model-sonnet">claude-sonnet-4-6</span>
         </div>
         <p class="agent-desc">Developer experience advocate — evaluates onboarding friction, documentation quality, naming, and ergonomics from a first-time user perspective</p>
         <div class="agent-tools"><span class="badge badge-tool">Read</span><span class="badge badge-tool">Write</span><span class="badge badge-tool">Edit</span><span class="badge badge-tool">Glob</span><span class="badge badge-tool">Grep</span></div>
         <div class="skill-list">
-          <div class="skill-list-title">2 skills</div>
+          <div class="skill-list-title">1 skill</div>
           <div class="skill-item">
             <span class="skill-name">dx-audit</span>
             <span class="skill-desc">evaluating PAS from a new user's perspective. Assesses onboarding path, naming clarity, documentation gaps, and overall developer experience.</span>
-          </div>
-          <div class="skill-item library">
-            <span class="skill-name">self-evaluation</span>
-            <span class="skill-desc">At agent shutdown to write structured improvement signals. Carried by all agents when feedback is enabled. Zero cost during productive work.</span>
           </div>
         </div>
       </div>
@@ -579,14 +577,10 @@
         <p class="agent-desc">Tracks Claude Code capabilities, competitive landscape, and ecosystem opportunities to inform PAS development priorities</p>
         <div class="agent-tools"><span class="badge badge-tool">Read</span><span class="badge badge-tool">Glob</span><span class="badge badge-tool">Grep</span><span class="badge badge-tool">WebSearch</span><span class="badge badge-tool">WebFetch</span></div>
         <div class="skill-list">
-          <div class="skill-list-title">2 skills</div>
+          <div class="skill-list-title">1 skill</div>
           <div class="skill-item">
             <span class="skill-name">ecosystem-scan</span>
             <span class="skill-desc">researching Claude Code's current capabilities, competing frameworks, and ecosystem trends. Produces an opportunity report for Discovery.</span>
-          </div>
-          <div class="skill-item library">
-            <span class="skill-name">self-evaluation</span>
-            <span class="skill-desc">At agent shutdown to write structured improvement signals. Carried by all agents when feedback is enabled. Zero cost during productive work.</span>
           </div>
         </div>
       </div>
@@ -598,14 +592,10 @@
         <p class="agent-desc">Processes accumulated feedback signals across all PAS artifacts, identifies patterns, and produces prioritized reports for Discovery</p>
         <div class="agent-tools"><span class="badge badge-tool">Read</span><span class="badge badge-tool">Glob</span><span class="badge badge-tool">Grep</span><span class="badge badge-tool">Write</span><span class="badge badge-tool">Edit</span></div>
         <div class="skill-list">
-          <div class="skill-list-title">2 skills</div>
+          <div class="skill-list-title">1 skill</div>
           <div class="skill-item">
             <span class="skill-name">feedback-analysis</span>
             <span class="skill-desc">processing accumulated feedback signals across PAS artifacts. Scans backlog directories, classifies signals, identifies patterns, and produces a prioritized report.</span>
-          </div>
-          <div class="skill-item library">
-            <span class="skill-name">self-evaluation</span>
-            <span class="skill-desc">At agent shutdown to write structured improvement signals. Carried by all agents when feedback is enabled. Zero cost during productive work.</span>
           </div>
         </div>
       </div>
@@ -617,7 +607,7 @@
         <p class="agent-desc">Core design authority for PAS — evaluates architecture, proposes structural changes, produces implementation plans, and implements architectural changes</p>
         <div class="agent-tools"><span class="badge badge-tool">Read</span><span class="badge badge-tool">Write</span><span class="badge badge-tool">Edit</span><span class="badge badge-tool">Glob</span><span class="badge badge-tool">Grep</span><span class="badge badge-tool">Bash</span></div>
         <div class="skill-list">
-          <div class="skill-list-title">3 skills</div>
+          <div class="skill-list-title">2 skills</div>
           <div class="skill-item">
             <span class="skill-name">framework-assessment</span>
             <span class="skill-desc">evaluating PAS's current state at the start of a development cycle. Audits artifacts against conventions, identifies architectural gaps, and compares capabilities to goals.</span>
@@ -625,10 +615,6 @@
           <div class="skill-item">
             <span class="skill-name">implementation-planning</span>
             <span class="skill-desc">producing a scoped implementation plan from approved priorities. Creates file-level specificity with parallelization analysis.</span>
-          </div>
-          <div class="skill-item library">
-            <span class="skill-name">self-evaluation</span>
-            <span class="skill-desc">At agent shutdown to write structured improvement signals. Carried by all agents when feedback is enabled. Zero cost during productive work.</span>
           </div>
         </div>
       </div>
@@ -640,37 +626,29 @@
         <p class="agent-desc">Coordinates the PAS development process, moderates Discovery discussions, dispatches Execution work, and interfaces with the product owner at gates</p>
         <div class="agent-tools"><span class="badge badge-tool">Read</span><span class="badge badge-tool">Write</span><span class="badge badge-tool">Edit</span><span class="badge badge-tool">Bash</span><span class="badge badge-tool">Grep</span><span class="badge badge-tool">Glob</span><span class="badge badge-tool">Agent</span><span class="badge badge-tool">SendMessage</span><span class="badge badge-tool">TeamCreate</span></div>
         <div class="skill-list">
-          <div class="skill-list-title">3 skills</div>
+          <div class="skill-list-title">2 skills</div>
           <div class="skill-item library">
             <span class="skill-name">orchestration</span>
-            <span class="skill-desc"></span>
+            
           </div>
           <div class="skill-item library">
             <span class="skill-name">message-routing</span>
-            <span class="skill-desc"></span>
-          </div>
-          <div class="skill-item library">
-            <span class="skill-name">self-evaluation</span>
-            <span class="skill-desc">At agent shutdown to write structured improvement signals. Carried by all agents when feedback is enabled. Zero cost during productive work.</span>
+            
           </div>
         </div>
       </div>
       <div class="agent-card">
         <div class="agent-header">
-          <h3>Qa Engineer</h3>
+          <h3>QA Engineer</h3>
           <span class="badge model-opus">claude-opus-4-6</span>
         </div>
         <p class="agent-desc">Quality gate for PAS development — validates changes against plan, conventions, consistency, and regressions</p>
         <div class="agent-tools"><span class="badge badge-tool">Read</span><span class="badge badge-tool">Glob</span><span class="badge badge-tool">Grep</span><span class="badge badge-tool">Bash</span></div>
         <div class="skill-list">
-          <div class="skill-list-title">2 skills</div>
+          <div class="skill-list-title">1 skill</div>
           <div class="skill-item">
             <span class="skill-name">change-validation</span>
             <span class="skill-desc">validating implemented changes against the plan, PAS conventions, cross-artifact consistency, and regressions.</span>
-          </div>
-          <div class="skill-item library">
-            <span class="skill-name">self-evaluation</span>
-            <span class="skill-desc">At agent shutdown to write structured improvement signals. Carried by all agents when feedback is enabled. Zero cost during productive work.</span>
           </div>
         </div>
       </div>
@@ -678,6 +656,21 @@
     </div>
   </div>
 
+  <div class="section" id="shared-skills">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title">Shared Skills</span>
+      <span class="section-toggle"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg></span>
+    </div>
+    <div class="section-body">
+      <div class="shared-skills-grid">
+      <div class="shared-skill-card">
+        <div class="shared-skill-name">self-evaluation</div>
+        <div class="shared-skill-desc">At agent shutdown to write structured improvement signals. Carried by all agents when feedback is enabled. Zero cost during productive work.</div>
+        <div class="shared-skill-agents">Used by Community Manager, DX Specialist, Ecosystem Analyst, Feedback Analyst, Framework Architect, Orchestrator, QA Engineer</div>
+      </div>
+      </div>
+    </div>
+  </div>
   <div class="section" id="modes">
     <div class="section-header" onclick="toggleSection(this)">
       <span class="section-title">Modes</span>
