@@ -34,6 +34,7 @@ The orchestrator does NOT assign tasks or direct output. Instead:
 5. Moderator synthesizes and proposes conclusion
 6. Agents confirm or raise final objections
 7. Moderator records the outcome
+8. Moderator verifies key claims against source code (read referenced files, check line numbers, confirm behavior) before recording the outcome. Treat agent reports as leads to investigate, not established facts.
 
 ## Status Tracking
 
