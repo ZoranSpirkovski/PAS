@@ -1,0 +1,63 @@
+process: pas-development
+instance: cycle-6
+started_at: 2026-03-08T12:00:00Z
+completed_at: ~
+status: in_progress
+
+phases:
+  discovery:
+    status: pending
+    agent: [feedback-analyst, community-manager, framework-architect, dx-specialist, ecosystem-analyst]
+    started_at: ~
+    completed_at: ~
+    attempts: 0
+    output_files: []
+    quality:
+      score: ~
+      notes: ~
+  planning:
+    status: pending
+    agent: framework-architect
+    started_at: ~
+    completed_at: ~
+    attempts: 0
+    output_files: []
+    quality:
+      score: ~
+      notes: ~
+  execution:
+    status: pending
+    agent: [framework-architect, dx-specialist, community-manager, feedback-analyst]
+    started_at: ~
+    completed_at: ~
+    attempts: 0
+    output_files: []
+    quality:
+      score: ~
+      notes: ~
+  validation:
+    status: pending
+    agent: qa-engineer
+    started_at: ~
+    completed_at: ~
+    attempts: 0
+    output_files: []
+    quality:
+      score: ~
+      notes: ~
+  release:
+    status: pending
+    agent: community-manager
+    started_at: ~
+    completed_at: ~
+    attempts: 0
+    output_files: []
+    quality:
+      score: ~
+      notes: ~
+
+sessions:
+  - id: cycle-6-s1
+    started_at: 2026-03-08T12:00:00Z
+    completed_at: ~
+    feedback_collected: false
