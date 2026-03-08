@@ -35,6 +35,16 @@ PRs are for direct PAS plugin changes only — files under `plugins/pas/`. Every
 **In a feature branch PR:** only `plugins/pas/` changes.
 **On dev directly:** `library/` mirror syncs, changelogs, plans, workspace, feedback.
 
+## Protected Files (dev branch)
+
+NEVER delete or exclude these directories when merging, cleaning, or restructuring:
+
+- `processes/pas-development/` — The full process definition (process.md, 7 agents, 9 skills, modes)
+- `library/` — Bootstrapped library skills
+- `workspace/` — Session workspaces and feedback
+
+These are dev-only artifacts that do NOT go in PRs, but they MUST remain on the dev branch. If a merge or cleanup removes them, restore immediately from git history.
+
 ## Conventions
 
 - Every artifact (process, agent, skill) has `feedback/backlog/` and `changelog.md`
