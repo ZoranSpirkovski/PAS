@@ -1,3 +1,5 @@
+Status: ACKNOWLEDGED (cycle 7 — confirms OQI-02 fix is working in practice)
+
 [STA-02]
 Target: process:pas-development
 Strength: OBSERVED

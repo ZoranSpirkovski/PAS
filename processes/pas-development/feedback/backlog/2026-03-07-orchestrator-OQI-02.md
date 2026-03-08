@@ -1,3 +1,5 @@
+Status: RESOLVED (cycle 6 — verification step added to orchestration docs; STA-02 from 2026-03-08 confirms fix practiced successfully)
+
 [OQI-02]
 Target: process:pas-development
 Degraded: Discovery agents' claims were initially taken at face value without code verification

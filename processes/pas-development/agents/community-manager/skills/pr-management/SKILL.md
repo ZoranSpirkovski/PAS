@@ -88,7 +88,32 @@ After the product owner merges the PR on GitHub:
 git branch -d <feature-branch>
 ```
 
-Do NOT merge `main` back into `dev`. PRs flow one way: dev → main. Dev already has the source files — merging main back risks deleting dev-only directories.
+### Step 6: Merge main back into dev
+
+After the PR is merged on main, sync main back into dev so that merge commits and any squash diffs are reflected:
+
+```bash
+git checkout dev
+git fetch origin main
+git merge origin/main --no-ff -m "Merge main into dev after PR #{N}"
+```
+
+**Immediately verify dev-only directories survived the merge:**
+
+```bash
+test -f processes/pas-development/process.md && echo "OK: process.md" || echo "MISSING: process.md"
+test -d library/ && echo "OK: library/" || echo "MISSING: library/"
+test -d workspace/ && echo "OK: workspace/" || echo "MISSING: workspace/"
+```
+
+If any are missing, restore them from the commit before the merge:
+
+```bash
+git checkout HEAD~1 -- processes/ library/ workspace/
+git commit -m "Restore dev-only directories after main merge"
+```
+
+This step is required. Skipping it causes dev and main to diverge, and the next cherry-pick becomes harder. The verification guard prevents the class of bug that has deleted `processes/pas-development/` twice in the past.
 
 ## Quality Checks
 
@@ -101,5 +126,6 @@ Do NOT merge `main` back into `dev`. PRs flow one way: dev → main. Dev already
 ## Common Mistakes
 
 - Cherry-picking the dev artifacts commit instead of the plugin commit
-- Merging main back into dev (risks deleting dev-only directories — never do this)
+- Skipping Step 6 (merge main back into dev) — causes divergence and harder cherry-picks
+- Skipping the post-merge directory verification — the merge can delete dev-only directories
 - Including workspace or process files in the PR

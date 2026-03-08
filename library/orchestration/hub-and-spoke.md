@@ -198,6 +198,8 @@ Gates are checkpoints where the process pauses for review. Behavior depends on t
    - Question: answer, then re-present gate
    - Instruction: incorporate, then continue
 
+**Claim verification:** Before presenting output at a gate, verify key agent claims against source code. Read referenced files, check stated behaviors, confirm line numbers. Treat agent reports as leads to investigate, not established facts. The product owner should never be the first to catch an unverified claim.
+
 **When `gates: advisory` (autonomous mode):**
 - Log gate results to status.yaml but do not pause
 - Orchestrator self-reviews at each gate point

@@ -12,7 +12,7 @@ All PAS plugin development happens on `dev`. Issues get applied here, tested, va
 ## Repo Layout
 
 - `plugins/pas/` — The PAS plugin (skills, hooks, library, processes)
-- `processes/pas-development/` — The PAS development process (7 agents, 4 phases)
+- `processes/pas-development/` — The PAS development process (7 agents, 5 phases)
 - `library/` — Bootstrapped library (copied from plugin for local use)
 - `workspace/` — Session workspaces (status tracking, feedback)
 - `docs/plans/` — Design docs and implementation plans
@@ -44,6 +44,10 @@ NEVER delete or exclude these directories when merging, cleaning, or restructuri
 - `workspace/` — Session workspaces and feedback
 
 These are dev-only artifacts that do NOT go in PRs, but they MUST remain on the dev branch. If a merge or cleanup removes them, restore immediately from git history.
+
+## Development Workflow
+
+Changes to the PAS plugin (`plugins/pas/`) should go through `/pas-development` rather than ad-hoc edits. The development process provides multi-agent discovery, structured planning, validation, and feedback collection that direct edits skip. Native plan mode works for quick exploration, but for shipping changes, use the process.
 
 ## Conventions
 
