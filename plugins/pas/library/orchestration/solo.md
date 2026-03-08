@@ -86,3 +86,7 @@ Before declaring the session complete, ALL of the following MUST be true:
 If any condition is not met, the session is NOT complete. Go back and satisfy the missing condition.
 
 **Hook enforcement:** The `verify-completion-gate.sh` Stop hook enforces conditions 1-2 technically. If you try to stop without writing feedback, the hook will block you and tell you what's missing. The hook is a safety net — follow the shutdown sequence above so it never needs to fire.
+
+### Session Continuity
+
+After the completion gate is satisfied, **always offer the product owner the option to start another cycle.** Ask whether they have a directive for the next cycle or want signal-driven discovery. Do not end the conversation without this offer — the product owner may want to chain cycles while context is fresh.
