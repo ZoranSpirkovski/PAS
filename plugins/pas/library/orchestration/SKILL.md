@@ -7,6 +7,10 @@ description: Decision guide for selecting the right orchestration pattern for a 
 
 Every process declares an `orchestration:` field in its process.md. This guide helps you choose the right pattern.
 
+## Terminology
+
+- **Slug**: A short identifier for a process run instance (e.g., `cycle-9`, `2026-03-08-code-review`). The slug is provided by the user or derived from the directive when the orchestrator creates the workspace.
+
 ## Available Patterns
 
 | Pattern | File | Orchestrator Role | Best For |
@@ -35,14 +39,21 @@ Every process declares an `orchestration:` field in its process.md. This guide h
 4. **Still unsure?**
    - Default to **hub-and-spoke**. It handles both parallel and sequential phases, and the orchestrator can infer execution order from I/O dependencies.
 
+## Shared Lifecycle
+
+All patterns share a common lifecycle protocol defined in `lifecycle.md`:
+- Workspace creation, lifecycle task creation, status tracking format
+- Ready-handshake protocol for agent spawn timing
+- Shutdown sequence, completion gate, session continuity, resumability
+
+Read `lifecycle.md` first, then the pattern-specific file for execution rules.
+
 ## Pattern Details
 
-Read the individual pattern file for execution rules:
-
-- `hub-and-spoke.md` — Spawn order, parallelism inference, status tracking, error chain, shutdown sequence, gate protocol, resumability
+- `hub-and-spoke.md` — Spawn order, parallelism inference, error chain, gate protocol, intra-phase parallel dispatch
 - `discussion.md` — Moderator behavior, turn-taking, synthesis rules
 - `solo.md` — Single-agent operation, when to upgrade to multi-agent
-- `sequential-agents.md` — Handoff protocol, status updates between agents
+- `sequential-agents.md` — Handoff protocol, agent lifecycle (eager shutdown)
 
 ## Overriding Defaults
 
