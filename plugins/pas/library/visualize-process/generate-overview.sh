@@ -97,7 +97,7 @@ for i in "${!PHASE_NAMES[@]}"; do
   fi
 
   PHASES_HTML+="      <div class=\"phase-card\">
-        <div class=\"phase-number\">${i+1}</div>
+        <div class=\"phase-number\">$((i+1))</div>
         <h3>$(esc "$(titlecase "$phase")")</h3>
         <div class=\"phase-detail\"><span class=\"phase-label\">Agents</span> $(esc "$agents_clean")</div>
         <div class=\"phase-detail\"><span class=\"phase-label\">Pattern</span> $(esc "$pattern")</div>
@@ -676,8 +676,8 @@ cat >> "$OUT" << HTMLEOF
     <div class="meta">
       <span class="meta-tag">v$(esc "$PROC_VERSION")</span>
       <span class="meta-tag">$(esc "$PROC_ORCH")</span>
-      <span class="meta-tag">${AGENT_COUNT} agents</span>
-      <span class="meta-tag">${PHASE_COUNT} phases</span>
+      <span class="meta-tag">${AGENT_COUNT} agent$( [[ $AGENT_COUNT -ne 1 ]] && echo s)</span>
+      <span class="meta-tag">${PHASE_COUNT} phase$( [[ $PHASE_COUNT -ne 1 ]] && echo s)</span>
     </div>
   </div>
 </div>
