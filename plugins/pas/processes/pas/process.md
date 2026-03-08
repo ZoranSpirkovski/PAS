@@ -31,5 +31,5 @@ Help users create and manage processes, agents, and skills. The orchestrator han
 
 ## Phases
 
-1. **Understand Intent**: Brainstorming-style conversation to clarify what the user wants. Crystal clarity principle: never assume, ask until clear.
+1. **Understand Intent**: Brainstorming-style conversation to clarify what the user wants. Never assume — ask clarifying questions until the user confirms.
 2. **Execute**: Route to the appropriate skill (create process, create agent, create skill, apply feedback) and execute.

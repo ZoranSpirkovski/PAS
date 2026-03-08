@@ -38,7 +38,7 @@ The orchestrator does NOT assign tasks or direct output. Instead:
 
 ## Status Tracking
 
-Same format as hub-and-spoke, but phases map to discussion rounds rather than production stages:
+Same format as `lifecycle.md` > Status Tracking, but phases map to discussion rounds rather than production stages:
 
 ```yaml
 phases:
@@ -57,62 +57,18 @@ phases:
 
 1. **Read process.md** to load the discussion topic, participants, and expected output format
 2. **Read mode file** (`modes/{mode}.md`) to determine gate behavior
-3. **Create workspace** — this is a HARD REQUIREMENT, not optional
-
-   ```bash
-   mkdir -p workspace/{process}/{slug}/discovery
-   mkdir -p workspace/{process}/{slug}/planning
-   mkdir -p workspace/{process}/{slug}/execution/changes
-   mkdir -p workspace/{process}/{slug}/validation
-   mkdir -p workspace/{process}/{slug}/feedback
-   ```
-
-   Write `workspace/{process}/{slug}/status.yaml` with all discussion rounds as `pending`, `started_at` timestamp, and `status: in_progress`.
-
-   Do NOT proceed to step 4 until the workspace directory and status.yaml exist on disk.
-
-   3a. **If status.yaml already exists**: this is a resumed session. Read it and resume from the last completed round. Do not re-create the workspace.
-
-4. **Create lifecycle tasks** using TaskCreate. These tasks make work visible and are enforced by the `verify-task-completion.sh` hook:
-
-   For each phase in process.md:
-   - `[PAS] Phase: {phase-name}` — description: "{agent} processes {input} to produce {output}"
-
-   Shutdown tasks (always created):
-   - `[PAS] Self-evaluation` — description: "Write feedback/orchestrator.md using library/self-evaluation/SKILL.md"
-   - `[PAS] Route framework signals` — description: "File any framework:pas signals as GitHub issues"
-   - `[PAS] Finalize status` — description: "Set status.yaml status to completed with completed_at timestamp"
-
-   Mark each task as completed when its work is done. The `[PAS]` prefix triggers hook enforcement — you cannot mark shutdown tasks complete until their deliverables exist on disk.
-
-5. **Spawn all discussion participants** via TeamCreate
-
-## Shutdown Sequence
-
-When the discussion is complete:
-
-1. **Verify synthesis** and all output files exist
-2. **Send downstream feedback** to each participant: share how their contributions were used in the final synthesis
-3. **Each agent writes self-evaluation** using `library/self-evaluation/SKILL.md` (when feedback is enabled). Output to `workspace/{process}/{slug}/feedback/{agent-name}.md`
-4. **All agents shut down together** after self-evaluation completes
-5. **Orchestrator writes own self-evaluation** to `workspace/{process}/{slug}/feedback/orchestrator.md`
-6. **Route framework signals**: Any signal with target `framework:pas` must be filed as a GitHub issue on the PAS repository
-7. **Verify all feedback signals** have been routed to their destinations
-8. **Orchestrator finalizes status.yaml**: mark process as `completed`, record final timestamps
-
-### COMPLETION GATE
-
-Before declaring the session complete, ALL of the following MUST be true:
-
-1. All rounds/phases have `status: completed` in status.yaml
-2. All feedback files exist in `workspace/{process}/{slug}/feedback/` (one per agent + orchestrator)
-3. All signals with target `framework:pas` have been filed as GitHub issues
-4. `status.yaml` has `completed_at` timestamp and `status: completed`
-
-If any condition is not met, the session is NOT complete. Go back and satisfy the missing condition.
-
-**Hook enforcement:** The `verify-completion-gate.sh` Stop hook enforces conditions 1-2 technically. If you try to stop without writing feedback, the hook will block you and tell you what's missing. The hook is a safety net — follow the shutdown sequence above so it never needs to fire.
+3. **Create workspace** -- follow `lifecycle.md` > Workspace Creation
+4. **Create lifecycle tasks** -- follow `lifecycle.md` > Lifecycle Task Creation
+5. **Spawn all discussion participants** via TeamCreate. Follow `lifecycle.md` > Ready Handshake -- wait for all agents to confirm READY before beginning the discussion.
 
 ## Gate Protocol
 
 In supervised mode, the moderator presents the synthesis to the user at each gate rather than raw agent outputs. The user can redirect the discussion or approve the synthesis.
+
+## Shutdown, Completion Gate, Session Continuity, Resumability
+
+Follow `lifecycle.md` for:
+- **Shutdown Sequence** (steps 1-8)
+- **Completion Gate** (4 conditions + hook enforcement)
+- **Session Continuity** (offer next cycle)
+- **Resumability** (resume from status.yaml)

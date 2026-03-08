@@ -19,7 +19,7 @@ This skill IS the execution framework. When generating plans for process creatio
 
 ### 1. Clarify the Goal
 
-Apply the crystal clarity principle. Never assume you understand what the user wants.
+Never assume you understand what the user wants. Ask clarifying questions until the user confirms.
 
 - Ask one question at a time, brainstorming-style
 - Probe for: scope, quality expectations, input format, output format, audience

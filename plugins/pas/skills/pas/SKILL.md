@@ -22,7 +22,7 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 
 - Brainstorming mode: explore the goal before committing to a solution
 - One question at a time: never ask multiple questions in one message
-- Crystal clarity principle: never assume you understand. Ask until the user confirms.
+- Never assume you understand what the user wants — ask clarifying questions until they confirm.
 - No PAS jargon unless the user uses it first. Speak in terms of goals, tasks, and steps.
 
 ## First-Run Detection
