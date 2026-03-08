@@ -1,9 +1,9 @@
 process: pas-development
 instance: cycle-6
 started_at: 2026-03-08T12:00:00Z
-completed_at: ~
-status: in_progress
-current_work: post-release design iteration on visualize-process
+completed_at: 2026-03-08T14:00:00Z
+status: completed
+current_work: ~
 
 phases:
   discovery:
@@ -65,20 +65,29 @@ phases:
       notes: "PR created. SKILL.md routing lost during branch switch, fixed."
 
 post_release_iteration:
-  status: in_progress
+  status: completed
   notes: |
     Product owner requested iterative design improvements after initial release:
     1. DONE: Replaced AI-driven skill with bash script (generate-overview.sh)
     2. DONE: Redesign with sticky nav, collapsible sections, mobile layout, visual polish
     3. DONE: Fixed phase numbering and pluralization
-    4. WIP: Shared library skills deduplication (skills used by 2+ agents shown in separate section, removed from agent cards)
-    5. WIP: Centered nav bar on desktop
-    6. TODO: Wire shared skills HTML section into output template
-    7. TODO: Regenerate both overviews and test
-    8. TODO: Update PR #18 with latest changes
+    4. DONE: Shared library skills deduplication (skills used by 2+ agents shown in separate section, removed from agent cards)
+    5. DONE: Centered nav bar on desktop
+    6. DONE: Wire shared skills HTML section into output template
+    7. DONE: Regenerate both overviews and test
+    8. DONE: Update PR #18 with latest changes
+    9. DONE: Phase flow grid layout, remove arrows, fix squished cards
+    10. DONE: Acronym-aware titlecasing (DX, QA, etc.)
+    11. DONE: Phase gates pinned to card bottom
+    12. DONE: Skill names fixed-width for consistent alignment
+    13. DONE: Top-aligned skill sections in agent cards
 
 sessions:
   - id: cycle-6-s1
     started_at: 2026-03-08T12:00:00Z
-    completed_at: ~
-    feedback_collected: false
+    completed_at: 2026-03-08T13:00:00Z
+    feedback_collected: true
+  - id: cycle-6-s2
+    started_at: 2026-03-08T13:30:00Z
+    completed_at: 2026-03-08T14:00:00Z
+    feedback_collected: true
