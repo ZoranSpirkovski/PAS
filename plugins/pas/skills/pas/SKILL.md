@@ -15,6 +15,7 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 - **Applying feedback** (upgrade, improve, what feedback exists): read `applying-feedback/SKILL.md`
 - **Modifying existing** (change, update, add phase): read the target artifact, then use creation skills
 - **Running a process** (run article, start pipeline): point to thin launcher (e.g., `/article`)
+- **Visualizing a process** (visualize, overview, view, HTML, diagram): read `${CLAUDE_SKILL_DIR}/../../library/visualize-process/SKILL.md`
 - **Information query** (what exists, status, list): survey `processes/`, `library/`, `workspace/`
 
 ## Conversation Style
