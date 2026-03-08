@@ -54,7 +54,7 @@ A dedicated process for evolving the PAS framework. Uses PAS's own constructs (p
 
 2. **Planning** (solo): The Framework Architect takes approved priorities and produces a scoped implementation plan — what changes to which files, dependencies between changes, and what can be parallelized in Execution.
 
-3. **Execution** (hub-and-spoke): The Orchestrator dispatches work items from the plan. Framework Architect handles architectural changes, DX Specialist handles documentation and ergonomics, Feedback Analyst marks addressed signals, Community Manager opens PRs and links issues.
+3. **Execution** (hub-and-spoke): The Orchestrator dispatches work items from the plan. Framework Architect handles architectural changes using PAS creation scripts for new artifacts, DX Specialist handles documentation and ergonomics, Feedback Analyst marks addressed signals, Community Manager opens PRs and links issues.
 
 4. **Validation** (solo): The QA Engineer reviews all changes against the approved plan, PAS conventions, cross-artifact consistency, and regressions. Issues route back to Execution. Clean report triggers release.
 

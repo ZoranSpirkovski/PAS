@@ -19,7 +19,11 @@ Take approved priorities from Discovery and produce a concrete, scoped implement
 1. **Read approved priorities**: Load `workspace/pas-development/{slug}/discovery/priorities.md`
 2. **For each priority, determine scope**:
    - Which existing files need modification? (Read them first)
-   - What new files need creation?
+   - What new files need creation? For new PAS artifacts (skills, agents, processes), specify the
+     `pas-create-*` command with all flags. Scripts live at
+     `plugins/pas/processes/pas/agents/orchestrator/skills/creating-{type}/scripts/pas-create-{type}`.
+     Use `--base-dir` to target the correct root. If the creation scripts themselves are the change
+     target, note this as a bootstrap exception and create manually.
    - What files might be affected indirectly? (Check cross-references)
 3. **Identify dependencies**: Which changes depend on others? Which are independent?
 4. **Assign to agents**: Based on the change type:
@@ -46,6 +50,7 @@ Take approved priorities from Discovery and produce a concrete, scoped implement
 **Files:**
 - Modify: `{path}` — {what changes}
 - Create: `{path}` — {what this is}
+  Command: `bash plugins/pas/.../pas-create-{type} --name ... --base-dir ...` (for PAS artifacts)
 **Depends on:** {other change numbers, or "none"}
 
 ### Change 2: ...
@@ -76,4 +81,9 @@ Take approved priorities from Discovery and produce a concrete, scoped implement
 
 ## Common Mistakes
 
-(Populated by feedback over time)
+- Creating PAS artifacts by hand instead of using `pas-create-*` scripts. The scripts guarantee
+  correct structure (SKILL.md frontmatter, changelog.md, feedback/backlog/.gitkeep). Manual
+  creation risks missing convention requirements.
+- Library skills: `pas-create-skill` outputs to `processes/{p}/agents/{a}/skills/{name}/` — there
+  is no `--library` flag. For library skills, create under a temporary agent path then move to
+  `library/`, or scaffold the directory manually following the same structure.
