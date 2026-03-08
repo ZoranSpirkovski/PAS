@@ -4,3 +4,4 @@
 processes/pas-development/** merge=ours
 library/** merge=ours
 workspace/** merge=ours
+.claude/skills/pas-development/** merge=ours

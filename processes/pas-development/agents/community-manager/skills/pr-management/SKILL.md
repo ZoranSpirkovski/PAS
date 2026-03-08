@@ -80,18 +80,15 @@ gh pr create --base main --title "{title}" --body "{body}"
 
 **Issue linking:** Use "closes #N" in the PR body for issues this fixes. Comment on the issue with root cause and fix reference.
 
-### Step 5: Post-merge sync
+### Step 5: Clean up
 
 After the product owner merges the PR on GitHub:
 
 ```bash
-git checkout dev
-git fetch origin main
-git merge origin/main -m "Merge branch 'main' into dev"
-git push origin dev
+git branch -d <feature-branch>
 ```
 
-This brings the merge commit back to dev, keeping branches in sync.
+Do NOT merge `main` back into `dev`. PRs flow one way: dev → main. Dev already has the source files — merging main back risks deleting dev-only directories.
 
 ## Quality Checks
 
@@ -104,5 +101,5 @@ This brings the merge commit back to dev, keeping branches in sync.
 ## Common Mistakes
 
 - Cherry-picking the dev artifacts commit instead of the plugin commit
-- Forgetting to merge main back into dev after PR merge (causes drift)
+- Merging main back into dev (risks deleting dev-only directories — never do this)
 - Including workspace or process files in the PR

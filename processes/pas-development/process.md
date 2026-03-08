@@ -58,4 +58,4 @@ A dedicated process for evolving the PAS framework. Uses PAS's own constructs (p
 
 4. **Validation** (solo): The QA Engineer reviews all changes against the approved plan, PAS conventions, cross-artifact consistency, and regressions. Issues route back to Execution. Clean report triggers release.
 
-5. **Release** (solo): The Community Manager commits plugin changes separately from dev artifacts, creates a feature branch off `main` with only `plugins/pas/` files, opens a PR targeting `main` that links related issues, and pushes dev artifacts to `dev`. After the product owner merges the PR, merges `main` back into `dev` to sync.
+5. **Release** (solo): The Community Manager creates a feature branch off `main` with only `plugins/pas/` files from dev, opens a PR targeting `main` that links related issues, and commits dev artifacts directly to `dev`. Do NOT merge `main` back into `dev` — PRs flow one way (dev → main). Dev already has the source files.
