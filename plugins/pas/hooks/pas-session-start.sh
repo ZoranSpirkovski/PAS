@@ -25,13 +25,14 @@ if [ -n "$SESSION_ID" ]; then
   SESSION_SHORT=$(echo "$SESSION_ID" | cut -c1-8)
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/workspace.sh"
+
 # Check for active workspace
 ACTIVE_STATUS=""
 WORKSPACE_DIR="$CWD/workspace"
 if [ -d "$WORKSPACE_DIR" ]; then
-  ACTIVE_STATUS=$(find "$WORKSPACE_DIR" -name "status.yaml" -print 2>/dev/null | while read -r f; do
-    echo "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null || echo 0) $f"
-  done | sort -rn | head -1 | awk '{print $2}')
+  ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR" 2>/dev/null) || true
 fi
 
 # Record session in status.yaml (if active workspace exists)
