@@ -64,7 +64,7 @@ cat <<EOF
 PAS Framework Active (feedback: ${FEEDBACK_STATUS})
 ${SESSION_CONTEXT}
 
-When running a PAS process, you MUST follow this lifecycle:
+Whether running a formal PAS process or executing an ad-hoc plan, you MUST follow this lifecycle:
 
 STARTUP (before any work):
 1. Create workspace: mkdir -p workspace/{process}/{slug}/{discovery,planning,execution/changes,validation,feedback}

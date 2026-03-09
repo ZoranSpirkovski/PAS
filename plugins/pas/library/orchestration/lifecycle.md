@@ -122,6 +122,16 @@ If any condition is not met, the session is NOT complete. Go back and satisfy th
 
 **Hook enforcement:** The `verify-completion-gate.sh` Stop hook enforces conditions 1-2 technically. If you try to stop without writing feedback, the hook will block you and tell you what's missing. The hook is a safety net -- follow the shutdown sequence above so it never needs to fire.
 
+## Ad-Hoc Execution
+
+When the product owner provides a pre-built plan or directs work outside a formal process invocation, the shutdown sequence still applies. Specifically:
+
+1. If a workspace exists for the current cycle, use it — do not create a new one
+2. Create lifecycle tasks for shutdown steps (`[PAS] Self-evaluation`, `[PAS] Route framework signals`, `[PAS] Finalize status`)
+3. After all work is done, follow the full Shutdown Sequence above
+
+The hooks enforce this regardless of how the work was initiated. Skipping shutdown because "this wasn't a formal process run" is not acceptable — the feedback system only works if every session contributes signals.
+
 ## Session Continuity
 
 After the completion gate is satisfied, **always offer the product owner the option to start another cycle.** Ask whether they have a directive for the next cycle or want signal-driven discovery. Do not end the conversation without this offer -- the product owner may want to chain cycles while context is fresh.
