@@ -110,7 +110,25 @@ if [[ -d "$TARGET" && "$FORCE" != true ]]; then
 fi
 
 if [[ -d "$TARGET" && "$FORCE" == true ]]; then
+  # Preserve reference material placed during Step 2 (Issue #21)
+  TMPDIR_REF=""
+  for ref_dir in reference references; do
+    if [[ -d "$TARGET/$ref_dir" ]]; then
+      TMPDIR_REF="${TMPDIR_REF:-$(mktemp -d)}"
+      cp -a "$TARGET/$ref_dir" "$TMPDIR_REF/$ref_dir"
+    fi
+  done
   rm -rf "$TARGET"
+  # Restore preserved reference directories
+  if [[ -n "$TMPDIR_REF" ]]; then
+    mkdir -p "$TARGET"
+    for ref_dir in reference references; do
+      if [[ -d "$TMPDIR_REF/$ref_dir" ]]; then
+        mv "$TMPDIR_REF/$ref_dir" "$TARGET/$ref_dir"
+      fi
+    done
+    rm -rf "$TMPDIR_REF"
+  fi
 fi
 
 # Convert name to title case for heading
@@ -196,6 +214,16 @@ EOF
     echo "**${PHASE_TITLE}**: Agent \`${PHASE_AGENT}\` takes \`${PHASE_INPUT}\` and produces \`${PHASE_OUTPUT}\`. Gate: ${PHASE_GATE}."
     echo ""
   done
+
+  echo "## Lifecycle"
+  echo ""
+  echo "This process follows the shared lifecycle protocol. Read \`library/orchestration/lifecycle.md\` for:"
+  echo ""
+  echo "- Workspace creation and status tracking"
+  echo "- Task creation (required — create a Claude Code task for each phase)"
+  echo "- Shutdown sequence and completion gate"
+  echo "- Ready handshake for multi-agent patterns"
+  echo ""
 } > "${TARGET}/process.md"
 echo "  Created ${TARGET}/process.md"
 FILE_COUNT=$((FILE_COUNT + 1))
@@ -273,6 +301,7 @@ description: ${GOAL}
 ---
 
 Read \`processes/${NAME}/process.md\` for the process definition.
+Read \`library/orchestration/lifecycle.md\` for shared lifecycle protocol (workspace, tasks, status, shutdown).
 Read the orchestration pattern from \`library/orchestration/\` as specified in the process.
 Execute.
 EOF
