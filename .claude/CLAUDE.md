@@ -1,19 +1,24 @@
-# PAS Framework
+# PAS Framework — Development Branch
 
-This is the canonical repository for PAS (Process-Agent-Skill). Users install from here. PAS is distributed as a Claude Code plugin.
+This is the development workspace for PAS (Process-Agent-Skill). The plugin source lives alongside the pas-development process, plans, workspace, and feedback.
 
 ## Branch Structure
 
 - `main` — Plugin distribution (clean, release-only)
-- `dev` — Development workspace (pas-development process, plans, workspace, feedback)
+- `dev` — Development workspace (this branch)
 
-Development happens on `dev`. Plugin changes get PR'd to `main`. `main` never merges from `dev`.
+All PAS plugin development happens on `dev`. Issues get applied here, tested, validated, and eventually merged into `main` for release.
 
 ## Repo Layout
 
 - `plugins/pas/` — The PAS plugin (skills, hooks, library, processes)
-- `.claude-plugin/marketplace.json` — Marketplace catalog for plugin distribution
-- `.claude/` — Repo-level Claude Code configuration
+- `processes/pas-development/` — The PAS development process (7 agents, 5 phases)
+- `library/` — Bootstrapped library (copied from plugin for local use)
+- `workspace/` — Session workspaces (status tracking, feedback)
+- `docs/plans/` — Design docs and implementation plans
+- `.claude/skills/pas-development/` — Thin launcher for the dev process
+- `pas-config.yaml` — Local PAS configuration
+- `.claude-plugin/marketplace.json` — Marketplace catalog
 
 ## Plugin Structure
 
@@ -23,6 +28,27 @@ Development happens on `dev`. Plugin changes get PR'd to `main`. `main` never me
 - `plugins/pas/processes/pas/` — PAS self-management process (orchestrator with 4 skills)
 - `plugins/pas/pas-config.yaml` — Framework configuration (feedback toggle)
 
+## PR Scope
+
+PRs are for direct PAS plugin changes only — files under `plugins/pas/`. Everything else (`library/` mirrors, root `CHANGELOG.md`, `docs/plans/`, workspace artifacts) gets committed directly to `dev`. This keeps PRs focused on reviewable plugin upgrades.
+
+**In a feature branch PR:** only `plugins/pas/` changes.
+**On dev directly:** `library/` mirror syncs, changelogs, plans, workspace, feedback.
+
+## Protected Files (dev branch)
+
+NEVER delete or exclude these directories when merging, cleaning, or restructuring:
+
+- `processes/pas-development/` — The full process definition (process.md, 7 agents, 9 skills, modes)
+- `library/` — Bootstrapped library skills
+- `workspace/` — Session workspaces and feedback
+
+These are dev-only artifacts that do NOT go in PRs, but they MUST remain on the dev branch. If a merge or cleanup removes them, restore immediately from git history.
+
+## Development Workflow
+
+Changes to the PAS plugin (`plugins/pas/`) should go through `/pas-development` rather than ad-hoc edits. The development process provides multi-agent discovery, structured planning, validation, and feedback collection that direct edits skip. Native plan mode works for quick exploration, but for shipping changes, use the process.
+
 ## Conventions
 
 - Every artifact (process, agent, skill) has `feedback/backlog/` and `changelog.md`
@@ -30,3 +56,4 @@ Development happens on `dev`. Plugin changes get PR'd to `main`. `main` never me
 - Agents are always process-local (no shared agents across processes)
 - Skills are local-first; only graduate to `library/` when reused in 2+ places
 - PAS framework feedback always goes to a GitHub issue — no exceptions
+- pas-development process feedback stays local in `processes/pas-development/feedback/backlog/`

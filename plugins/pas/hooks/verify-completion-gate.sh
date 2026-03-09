@@ -7,9 +7,11 @@ set -euo pipefail
 # to check for session-specific feedback: feedback/orchestrator-{session_id}.md.
 # Uses stop_hook_active to prevent infinite blocking loops.
 
-INPUT=$(cat)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/guards.sh"
 
-CWD=$(echo "$INPUT" | jq -r '.cwd')
+guard_parse_input || exit 0
+
 STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
 
@@ -18,30 +20,14 @@ if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
   exit 0
 fi
 
-# Guard: only run in PAS repos with feedback enabled
-PAS_CONFIG="$CWD/pas-config.yaml"
-if [ ! -f "$PAS_CONFIG" ]; then
+guard_feedback_enabled || exit 0
+guard_active_workspace "$SCRIPT_DIR" || exit 0
+
+# Defense-in-depth: if workspace is already completed, don't block (Issue #23)
+TOP_STATUS=$(grep '^status:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}')
+if [ "$TOP_STATUS" = "completed" ]; then
   exit 0
 fi
-
-FEEDBACK_STATUS=$(grep -o 'feedback:[[:space:]]*\w*' "$PAS_CONFIG" | head -1 | awk '{print $NF}')
-if [ "$FEEDBACK_STATUS" != "enabled" ]; then
-  exit 0
-fi
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/lib/workspace.sh"
-
-# Find active workspace (most recently modified status.yaml)
-WORKSPACE_DIR="$CWD/workspace"
-if [ ! -d "$WORKSPACE_DIR" ]; then
-  exit 0
-fi
-
-ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR") || exit 0
-
-ACTIVE_WORKSPACE=$(dirname "$ACTIVE_STATUS")
-FEEDBACK_DIR="$ACTIVE_WORKSPACE/feedback"
 
 # Check: are there any pending phases?
 PENDING_COUNT=$(grep -c '^\s*status: pending' "$ACTIVE_STATUS" 2>/dev/null) || PENDING_COUNT=0
@@ -60,35 +46,65 @@ else
   SESSION_SHORT=$(grep '^current_session:' "$ACTIVE_STATUS" 2>/dev/null | awk '{print $2}')
 fi
 
-# All phases completed. Check for session-specific feedback.
+# All phases completed. Check for session-specific orchestrator feedback.
+ORCHESTRATOR_OK=false
 if [ -n "$SESSION_SHORT" ]; then
-  # Session-aware check: look for feedback/orchestrator-{session_id}.md
   SESSION_FEEDBACK="$FEEDBACK_DIR/orchestrator-${SESSION_SHORT}.md"
   if [ -f "$SESSION_FEEDBACK" ]; then
-    exit 0
+    ORCHESTRATOR_OK=true
   fi
   EXPECTED_FILE="orchestrator-${SESSION_SHORT}.md"
 else
-  # No session ID available — fall back to any orchestrator feedback file
   if ls "$FEEDBACK_DIR"/orchestrator*.md 1>/dev/null 2>&1; then
-    exit 0
+    ORCHESTRATOR_OK=true
   fi
   EXPECTED_FILE="orchestrator-{session_id}.md"
 fi
 
-# BLOCK: All phases completed but no feedback for this session
-cat >&2 <<EOF
-COMPLETION GATE FAILED
+# Check agent feedback (Issue #19): extract unique agent names from phases, verify each has feedback
+MISSING_AGENTS=""
+AGENT_NAMES=$(grep '^\s*agent:' "$ACTIVE_STATUS" 2>/dev/null | awk '{print $2}' | sort -u || true)
+if [ -n "$AGENT_NAMES" ]; then
+  while read -r agent_name; do
+    [ -z "$agent_name" ] && continue
+    [ "$agent_name" = "orchestrator" ] && continue
+    # Look for any feedback file matching this agent name
+    if ! find "$FEEDBACK_DIR" -maxdepth 1 \( -name "${agent_name}.md" -o -name "${agent_name}-*.md" \) 2>/dev/null | grep -q .; then
+      MISSING_AGENTS="${MISSING_AGENTS:+$MISSING_AGENTS, }$agent_name"
+    fi
+  done <<< "$AGENT_NAMES"
+fi
 
-All phases are completed but you have not written your self-evaluation for this session.
+# If orchestrator feedback exists and no agents are missing feedback, allow stop
+if [ "$ORCHESTRATOR_OK" = true ] && [ -z "$MISSING_AGENTS" ]; then
+  exit 0
+fi
 
-Before stopping, you MUST:
-1. Write self-evaluation to ${FEEDBACK_DIR}/${EXPECTED_FILE}
-   - Use library/self-evaluation/SKILL.md for the format
-   - If nothing went wrong, write "No issues detected."
-2. Route any framework:pas signals as GitHub issues
-3. Update status.yaml: set status to completed and completed_at timestamp
-
-You cannot stop until these steps are done.
-EOF
+# BLOCK: build failure message
+{
+  echo "COMPLETION GATE FAILED"
+  echo ""
+  if [ "$ORCHESTRATOR_OK" != true ]; then
+    echo "Orchestrator self-evaluation missing: ${FEEDBACK_DIR}/${EXPECTED_FILE}"
+  fi
+  if [ -n "$MISSING_AGENTS" ]; then
+    echo "Agent self-evaluation missing for: ${MISSING_AGENTS}"
+    echo "Each agent must write feedback to ${FEEDBACK_DIR}/{agent-name}.md before shutdown."
+  fi
+  echo ""
+  echo "Before stopping, you MUST:"
+  echo "1. Write self-evaluation to ${FEEDBACK_DIR}/${EXPECTED_FILE}"
+  echo "   - Use library/self-evaluation/SKILL.md for the format"
+  echo "   - If nothing went wrong, write \"No issues detected.\""
+  if [ -n "$MISSING_AGENTS" ]; then
+    echo "2. Ensure all agents have written their feedback files"
+    echo "3. Route any framework:pas signals as GitHub issues"
+    echo "4. Update status.yaml: set status to completed and completed_at timestamp"
+  else
+    echo "2. Route any framework:pas signals as GitHub issues"
+    echo "3. Update status.yaml: set status to completed and completed_at timestamp"
+  fi
+  echo ""
+  echo "You cannot stop until these steps are done."
+} >&2
 exit 2

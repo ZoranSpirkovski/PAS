@@ -1,0 +1,7 @@
+# Keep dev-only directories during merges from main.
+# Main doesn't have these files, so merges try to delete them.
+# "merge=ours" tells git to always keep our (dev) version.
+processes/pas-development/** merge=ours
+library/** merge=ours
+workspace/** merge=ours
+.claude/skills/pas-development/** merge=ours

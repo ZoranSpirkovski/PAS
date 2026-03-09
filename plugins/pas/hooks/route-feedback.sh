@@ -5,25 +5,14 @@ set -euo pipefail
 # Enhanced: also extracts signals from last_assistant_message,
 # mkdir -p before all log writes, sort-by-mtime for workspace detection.
 
-INPUT=$(cat)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/guards.sh"
 
-CWD=$(echo "$INPUT" | jq -r '.cwd')
+guard_parse_input || exit 0
+
 LAST_MESSAGE=$(echo "$INPUT" | jq -r '.last_assistant_message // empty')
 
-if [ -z "$CWD" ]; then
-  exit 0
-fi
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/lib/workspace.sh"
-
 # --- Functions ---
-
-find_active_workspace() {
-  local status_path
-  status_path=$(find_active_workspace_status "$CWD/workspace") || return 1
-  dirname "$status_path"
-}
 
 resolve_target_path() {
   local target="$1"
@@ -171,9 +160,7 @@ $line"
 
 # --- Main ---
 
-# Find active workspace
-ACTIVE_WORKSPACE=$(find_active_workspace) || exit 0
-FEEDBACK_DIR="$ACTIVE_WORKSPACE/feedback"
+guard_active_workspace "$SCRIPT_DIR" || exit 0
 
 # Route from .md files (primary mechanism)
 if [ -d "$FEEDBACK_DIR" ]; then

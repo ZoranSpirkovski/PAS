@@ -56,6 +56,8 @@ PAS will ask clarifying questions (one at a time, brainstorming-style), then cre
 - A thin launcher so you can run it with a slash command
 - Library skills (orchestration patterns, self-evaluation, feedback routing)
 
+On first use, PAS creates `pas-config.yaml`, `library/`, and `workspace/` directories in your project root.
+
 ## Core Concepts
 
 ### Recursive Composition
@@ -87,7 +89,7 @@ Four built-in patterns for coordinating agents:
 
 Every agent writes self-evaluation signals at shutdown. Four signal types:
 
-- **PPU** (Process/Pipeline Upgrade) - workflow improvements
+- **PPU** (Persistent Preference Update) - workflow improvements
 - **OQI** (Output Quality Issue) - quality problems in deliverables
 - **GATE** (Gate Evaluation) - review point observations
 - **STA** (Stability Anchor) - behaviors that must not regress

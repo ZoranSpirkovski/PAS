@@ -9,35 +9,21 @@ set -euo pipefail
 #   "[PAS] Finalize status" → status.yaml must have status: completed
 #   "[PAS] Route framework signals" → allowed (can't verify GitHub issues from bash)
 
-INPUT=$(cat)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/guards.sh"
 
-CWD=$(echo "$INPUT" | jq -r '.cwd')
+guard_parse_input || exit 0
+
 TASK_SUBJECT=$(echo "$INPUT" | jq -r '.task_subject // empty')
 
-# Guard: only run in PAS repos
-PAS_CONFIG="$CWD/pas-config.yaml"
-if [ ! -f "$PAS_CONFIG" ]; then
-  exit 0
-fi
+guard_pas_project || exit 0
 
 # Only act on PAS-prefixed tasks
 if ! echo "$TASK_SUBJECT" | grep -q '^\[PAS\]'; then
   exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/lib/workspace.sh"
-
-# Find active workspace
-WORKSPACE_DIR="$CWD/workspace"
-if [ ! -d "$WORKSPACE_DIR" ]; then
-  exit 0
-fi
-
-ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR") || exit 0
-
-ACTIVE_WORKSPACE=$(dirname "$ACTIVE_STATUS")
-FEEDBACK_DIR="$ACTIVE_WORKSPACE/feedback"
+guard_active_workspace "$SCRIPT_DIR" || exit 0
 
 # Check by task type
 case "$TASK_SUBJECT" in
@@ -64,8 +50,8 @@ EOF
     ;;
 
   *"Finalize status"*)
-    TOP_STATUS=$(grep '^status:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}')
-    COMPLETED_AT=$(grep '^completed_at:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}')
+    TOP_STATUS=$(grep '^status:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}' || true)
+    COMPLETED_AT=$(grep '^completed_at:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}' || true)
 
     if [ "$TOP_STATUS" != "completed" ] || [ "$COMPLETED_AT" = "~" ] || [ -z "$COMPLETED_AT" ]; then
       cat >&2 <<EOF
