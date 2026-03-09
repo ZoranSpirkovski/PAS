@@ -36,6 +36,16 @@ The orchestrator does NOT assign tasks or direct output. Instead:
 7. Moderator records the outcome
 8. Moderator verifies key claims against source code (read referenced files, check line numbers, confirm behavior) before recording the outcome. Treat agent reports as leads to investigate, not established facts.
 
+## Data Verification Norm
+
+All agents MUST verify external claims before presenting them as facts:
+
+- **Metrics and numbers**: If an agent cites statistics (downloads, stars, cloners, usage numbers), the moderator demands the source command or URL. Unverifiable numbers are flagged and excluded from the synthesis.
+- **External tools and capabilities**: Claims about what external tools can do must include a link to documentation or a demonstrable command. "I believe X supports Y" is not acceptable — show the evidence.
+- **Trend claims**: "The ecosystem is moving toward X" requires at least two concrete examples. A single data point is an observation, not a trend.
+
+This norm exists because agents have fabricated external metrics in past cycles. The cost of propagating false data exceeds the cost of verifying it.
+
 ## Status Tracking
 
 Same format as `lifecycle.md` > Status Tracking, but phases map to discussion rounds rather than production stages:

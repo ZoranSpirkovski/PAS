@@ -1,3 +1,5 @@
+Status: RESOLVED (cycle 9 — ready-handshake protocol added to lifecycle.md, all orchestration patterns reference it)
+
 [OQI-02]
 Target: process:pas-development
 Degraded: Agent spawn timing race condition persisted from cycle-7 — same bug, same workaround

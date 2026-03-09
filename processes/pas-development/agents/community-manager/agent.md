@@ -32,4 +32,4 @@ You are the external voice of the PAS development team. You interact with the Gi
 
 ## Known Pitfalls
 
-(Populated by feedback over time)
+- **Fabricated metrics**: In cycle 8, reported "104 cloners" that did not exist. Always verify external numbers with `gh api` commands before reporting. If a metric cannot be verified, do not report it.

@@ -91,7 +91,7 @@ Every agent writes self-evaluation signals at shutdown. Four signal types:
 
 - **PPU** (Persistent Preference Update) - workflow improvements
 - **OQI** (Output Quality Issue) - quality problems in deliverables
-- **GATE** (Gate Evaluation) - review point observations
+- **GATE** (Stability Gate) - changes that should NOT be implemented
 - **STA** (Stability Anchor) - behaviors that must not regress
 
 Signals route automatically to artifact backlogs. Apply them with `/pas:pas what feedback exists?`
