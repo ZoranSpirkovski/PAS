@@ -6,18 +6,14 @@ set -euo pipefail
 # Also writes current_session to status.yaml so the Stop hook can verify
 # feedback was written by THIS session, not a previous one.
 
-INPUT=$(cat)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/guards.sh"
 
-CWD=$(echo "$INPUT" | jq -r '.cwd')
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
-
-# Guard: only run in PAS repos
-PAS_CONFIG="$CWD/pas-config.yaml"
-if [ ! -f "$PAS_CONFIG" ]; then
-  exit 0
-fi
+guard_parse_input || exit 0
+guard_pas_project || exit 0
 
 FEEDBACK_STATUS=$(grep -o 'feedback:[[:space:]]*\w*' "$PAS_CONFIG" | head -1 | awk '{print $NF}')
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
 
 # Derive short session ID (first 8 chars)
 SESSION_SHORT=""
@@ -25,14 +21,10 @@ if [ -n "$SESSION_ID" ]; then
   SESSION_SHORT=$(echo "$SESSION_ID" | cut -c1-8)
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/lib/workspace.sh"
-
 # Check for active workspace
 ACTIVE_STATUS=""
-WORKSPACE_DIR="$CWD/workspace"
-if [ -d "$WORKSPACE_DIR" ]; then
-  ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR" 2>/dev/null) || true
+if guard_active_workspace "$SCRIPT_DIR"; then
+  true
 fi
 
 # Record session in status.yaml (if active workspace exists)

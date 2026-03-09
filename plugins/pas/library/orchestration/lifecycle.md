@@ -100,8 +100,8 @@ When all phases are complete:
 
 1. **Verify all output files** exist for all phases
 2. **Send downstream feedback** to each team member (if any): share relevant quality notes from later phases
-3. **Each agent writes self-evaluation** using `library/self-evaluation/SKILL.md` (when feedback is enabled). This is mandatory -- do NOT proceed to step 4 until all agents have written their feedback. Output to `workspace/{process}/{slug}/feedback/{agent-name}.md`
-4. **All agents shut down together** after self-evaluation completes
+3. **Each agent writes self-evaluation** using `library/self-evaluation/SKILL.md` (when feedback is enabled). This is mandatory -- do NOT proceed to step 4 until all agents have written their feedback. Output to `workspace/{process}/{slug}/feedback/{agent-name}.md`. The `check-self-eval.sh` SubagentStop hook blocks agents from stopping without feedback, and the `verify-completion-gate.sh` Stop hook verifies ALL agents have feedback files before the orchestrator can stop.
+4. **All agents shut down together** after self-evaluation completes. The orchestrator MUST NOT instruct agents to skip self-evaluation — hook enforcement will block the session if any agent feedback is missing.
 5. **Orchestrator writes own self-evaluation** to `workspace/{process}/{slug}/feedback/orchestrator.md`. The orchestrator is an agent too -- it observes issues that team members cannot (coordination failures, gate misjudgments, process-level problems). Do NOT skip this step.
 6. **Route framework signals**: Any signal with target `framework:pas` must be filed as a GitHub issue on the PAS repository. Do not leave framework signals in local feedback files only.
 7. **Verify all feedback signals** have been routed to their destinations (GitHub issues, artifact backlogs, etc.) before declaring session complete

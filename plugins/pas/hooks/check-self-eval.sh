@@ -5,36 +5,16 @@ set -euo pipefail
 # Enhanced: uses agent_id for identification, agent_transcript_path
 # for secondary detection, sort-by-mtime instead of -newer.
 
-INPUT=$(cat)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/guards.sh"
 
-CWD=$(echo "$INPUT" | jq -r '.cwd')
+guard_parse_input || exit 0
+
 AGENT_ID=$(echo "$INPUT" | jq -r '.agent_id // "unknown"')
 AGENT_TRANSCRIPT=$(echo "$INPUT" | jq -r '.agent_transcript_path // empty')
 
-# Guard: only run in PAS repos with feedback enabled
-PAS_CONFIG="$CWD/pas-config.yaml"
-if [ ! -f "$PAS_CONFIG" ]; then
-  exit 0
-fi
-
-FEEDBACK_STATUS=$(grep -o 'feedback:[[:space:]]*\w*' "$PAS_CONFIG" | head -1 | awk '{print $NF}')
-if [ "$FEEDBACK_STATUS" != "enabled" ]; then
-  exit 0
-fi
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/lib/workspace.sh"
-
-# Find active workspace (sort-by-mtime approach)
-WORKSPACE_DIR="$CWD/workspace"
-if [ ! -d "$WORKSPACE_DIR" ]; then
-  exit 0
-fi
-
-ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR") || exit 0
-
-ACTIVE_WORKSPACE=$(dirname "$ACTIVE_STATUS")
-FEEDBACK_DIR="$ACTIVE_WORKSPACE/feedback"
+guard_feedback_enabled || exit 0
+guard_active_workspace "$SCRIPT_DIR" || exit 0
 
 if [ ! -d "$FEEDBACK_DIR" ]; then
   exit 0
