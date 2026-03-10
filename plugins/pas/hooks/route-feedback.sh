@@ -23,18 +23,18 @@ resolve_target_path() {
 
   case "$type" in
     process)
-      echo "$CWD/processes/$value/feedback/backlog"
+      echo "$CWD/$PAS_ROOT/processes/$value/feedback/backlog"
       ;;
     agent)
       local found
-      found=$(find "$CWD/processes" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+      found=$(find "$CWD/$PAS_ROOT/processes" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1)
       echo "${found:-}"
       ;;
     skill)
       local found
-      found=$(find "$CWD/processes" -path "*/skills/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+      found=$(find "$CWD/$PAS_ROOT/processes" -path "*/skills/$value/feedback/backlog" -type d 2>/dev/null | head -1)
       if [ -z "$found" ]; then
-        found=$(find "$CWD/library" -path "*/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+        found=$(find "$CWD/$PAS_ROOT/library" -path "*/$value/feedback/backlog" -type d 2>/dev/null | head -1)
       fi
       echo "${found:-}"
       ;;
@@ -65,7 +65,7 @@ route_signal() {
 route_framework_signal() {
   local signal_block="$1"
   local signal_id="$2"
-  local log_dir="$CWD/feedback"
+  local log_dir="$CWD/$PAS_ROOT/feedback"
   mkdir -p "$log_dir"
 
   # Guard: only route signals marked for GitHub issue creation
@@ -124,8 +124,8 @@ parse_and_route_signals() {
         elif [ -n "$target_path" ]; then
           route_signal "$current_signal" "$current_id" "$source_name" "$target_path"
         else
-          mkdir -p "$CWD/feedback"
-          echo "[$(date -Iseconds)] WARNING: Unknown target '$current_target'" >> "$CWD/feedback/warnings.log" 2>/dev/null || true
+          mkdir -p "$CWD/$PAS_ROOT/feedback"
+          echo "[$(date -Iseconds)] WARNING: Unknown target '$current_target'" >> "$CWD/$PAS_ROOT/feedback/warnings.log" 2>/dev/null || true
         fi
       fi
 
@@ -152,8 +152,8 @@ $line"
     elif [ -n "$target_path" ]; then
       route_signal "$current_signal" "$current_id" "$source_name" "$target_path"
     else
-      mkdir -p "$CWD/feedback"
-      echo "[$(date -Iseconds)] WARNING: Unknown target '$current_target'" >> "$CWD/feedback/warnings.log" 2>/dev/null || true
+      mkdir -p "$CWD/$PAS_ROOT/feedback"
+      echo "[$(date -Iseconds)] WARNING: Unknown target '$current_target'" >> "$CWD/$PAS_ROOT/feedback/warnings.log" 2>/dev/null || true
     fi
   fi
 }

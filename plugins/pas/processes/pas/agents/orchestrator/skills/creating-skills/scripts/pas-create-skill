@@ -84,7 +84,7 @@ if [[ ! "$NAME" =~ ^[a-z][a-z0-9-]*$ ]]; then
 fi
 
 # Build target path
-TARGET="${BASE_DIR:+${BASE_DIR}/}processes/${PROCESS}/agents/${AGENT}/skills/${NAME}"
+TARGET="${BASE_DIR:+${BASE_DIR}/}.pas/processes/${PROCESS}/agents/${AGENT}/skills/${NAME}"
 
 # Check directory conflict
 if [[ -d "$TARGET" && "$FORCE" != true ]]; then

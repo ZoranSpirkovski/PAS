@@ -12,14 +12,14 @@ Every orchestration pattern shares this lifecycle protocol. Pattern-specific fil
 This is a **HARD REQUIREMENT**, not optional. Do NOT proceed to any subsequent startup step until the workspace directory and status.yaml exist on disk.
 
 ```bash
-mkdir -p workspace/{process}/{slug}/discovery
-mkdir -p workspace/{process}/{slug}/planning
-mkdir -p workspace/{process}/{slug}/execution/changes
-mkdir -p workspace/{process}/{slug}/validation
-mkdir -p workspace/{process}/{slug}/feedback
+mkdir -p .pas/workspace/{process}/{slug}/discovery
+mkdir -p .pas/workspace/{process}/{slug}/planning
+mkdir -p .pas/workspace/{process}/{slug}/execution/changes
+mkdir -p .pas/workspace/{process}/{slug}/validation
+mkdir -p .pas/workspace/{process}/{slug}/feedback
 ```
 
-Write `workspace/{process}/{slug}/status.yaml` with all phases as `pending`, `started_at` timestamp, and `status: in_progress`.
+Write `.pas/workspace/{process}/{slug}/status.yaml` with all phases as `pending`, `started_at` timestamp, and `status: in_progress`.
 
 **If status.yaml already exists**: this is a resumed session. Read it and resume from the last completed phase (see Resumability below). Do not re-create the workspace.
 
@@ -31,7 +31,7 @@ For each phase in process.md:
 - `[PAS] Phase: {phase-name}` -- description: "{agent} processes {input} to produce {output}"
 
 Shutdown tasks (always created):
-- `[PAS] Self-evaluation` -- description: "Write feedback/orchestrator.md using library/self-evaluation/SKILL.md"
+- `[PAS] Self-evaluation` -- description: "Write feedback/orchestrator.md using .pas/library/self-evaluation/SKILL.md"
 - `[PAS] Route framework signals` -- description: "File any framework:pas signals as GitHub issues"
 - `[PAS] Finalize status` -- description: "Set status.yaml status to completed with completed_at timestamp"
 
@@ -56,7 +56,7 @@ The solo pattern does not use this protocol since it does not spawn agents.
 
 ## Status Tracking
 
-Write `workspace/{process}/{slug}/status.yaml` continuously at every state change. Status is a performance log, not just state.
+Write `.pas/workspace/{process}/{slug}/status.yaml` continuously at every state change. Status is a performance log, not just state.
 
 **Valid states:** `pending`, `in_progress`, `completed`. Add process-specific states only when the user requests them.
 
@@ -100,9 +100,9 @@ When all phases are complete:
 
 1. **Verify all output files** exist for all phases
 2. **Send downstream feedback** to each team member (if any): share relevant quality notes from later phases
-3. **Each agent writes self-evaluation** using `library/self-evaluation/SKILL.md` (when feedback is enabled). This is mandatory -- do NOT proceed to step 4 until all agents have written their feedback. Output to `workspace/{process}/{slug}/feedback/{agent-name}.md`. The `check-self-eval.sh` SubagentStop hook blocks agents from stopping without feedback, and the `verify-completion-gate.sh` Stop hook verifies ALL agents have feedback files before the orchestrator can stop.
+3. **Each agent writes self-evaluation** using `.pas/library/self-evaluation/SKILL.md` (when feedback is enabled). This is mandatory -- do NOT proceed to step 4 until all agents have written their feedback. Output to `.pas/workspace/{process}/{slug}/feedback/{agent-name}.md`. The `check-self-eval.sh` SubagentStop hook blocks agents from stopping without feedback, and the `verify-completion-gate.sh` Stop hook verifies ALL agents have feedback files before the orchestrator can stop.
 4. **All agents shut down together** after self-evaluation completes. The orchestrator MUST NOT instruct agents to skip self-evaluation — hook enforcement will block the session if any agent feedback is missing.
-5. **Orchestrator writes own self-evaluation** to `workspace/{process}/{slug}/feedback/orchestrator.md`. The orchestrator is an agent too -- it observes issues that team members cannot (coordination failures, gate misjudgments, process-level problems). Do NOT skip this step.
+5. **Orchestrator writes own self-evaluation** to `.pas/workspace/{process}/{slug}/feedback/orchestrator.md`. The orchestrator is an agent too -- it observes issues that team members cannot (coordination failures, gate misjudgments, process-level problems). Do NOT skip this step.
 6. **Route framework signals**: Any signal with target `framework:pas` must be filed as a GitHub issue on the PAS repository. Do not leave framework signals in local feedback files only.
 7. **Verify all feedback signals** have been routed to their destinations (GitHub issues, artifact backlogs, etc.) before declaring session complete
 8. **Orchestrator finalizes status.yaml**: mark process as `completed`, record final timestamps and quality scores
@@ -114,7 +114,7 @@ For solo pattern: steps 2-4 are skipped (no team members). The orchestrator writ
 Before declaring the session complete, ALL of the following MUST be true:
 
 1. All phases have `status: completed` in status.yaml
-2. All feedback files exist in `workspace/{process}/{slug}/feedback/` (one per agent + orchestrator)
+2. All feedback files exist in `.pas/workspace/{process}/{slug}/feedback/` (one per agent + orchestrator)
 3. All signals with target `framework:pas` have been filed as GitHub issues
 4. `status.yaml` has `completed_at` timestamp and `status: completed`
 
@@ -130,7 +130,7 @@ After the completion gate is satisfied, **always offer the product owner the opt
 
 If a session is interrupted (context limits, user leaves, crash):
 
-1. On next session start, read `workspace/{process}/{slug}/status.yaml`
+1. On next session start, read `.pas/workspace/{process}/{slug}/status.yaml`
 2. Identify last completed phase and current in_progress phase
 3. For in_progress phases: check if output files exist and are complete
    - If complete but not marked: mark as completed, proceed

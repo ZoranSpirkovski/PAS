@@ -50,7 +50,7 @@ Agent '${AGENT_ID}' is shutting down without writing self-evaluation.
 Before stopping, write your self-evaluation to:
   ${FEEDBACK_DIR}/${AGENT_ID}.md
 
-Use library/self-evaluation/SKILL.md for the format.
+Use .pas/library/self-evaluation/SKILL.md for the format.
 If nothing went wrong, write "No issues detected."
 EOF
 exit 2

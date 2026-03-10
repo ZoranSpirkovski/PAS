@@ -16,7 +16,7 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 - **Modifying existing** (change, update, add phase): read the target artifact, then use creation skills
 - **Running a process** (run article, start pipeline): point to thin launcher (e.g., `/article`)
 - **Visualizing a process** (visualize, overview, view, HTML, diagram): read `${CLAUDE_SKILL_DIR}/../../library/visualize-process/SKILL.md`
-- **Information query** (what exists, status, list): survey `processes/`, `library/`, `workspace/`
+- **Information query** (what exists, status, list): survey `.pas/processes/`, `.pas/library/`, `.pas/workspace/`
 
 ## Conversation Style
 
@@ -27,22 +27,24 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 
 ## First-Run Detection
 
-If `pas-config.yaml` does not exist at the project root, run self-setup:
+If `.pas/config.yaml` does not exist at the project root, run self-setup:
 
-1. Create `pas-config.yaml` with defaults: `feedback: enabled`, `feedback_disabled_at: ~`
-2. Create `library/` with core skills by copying from the PAS plugin's library: `self-evaluation/`, `message-routing/`, `orchestration/`
-3. Create `workspace/` directory
-4. Confirm to the user: "PAS initialized — library, workspace, and config are ready."
+1. Create `.pas/config.yaml` with defaults: `feedback: enabled`, `feedback_disabled_at: ~`
+2. Create `.pas/library/` with core skills by copying from the PAS plugin's library: `self-evaluation/`, `message-routing/`, `orchestration/`
+3. Create `.pas/workspace/` directory
+4. Confirm to the user: "PAS initialized — .pas/ directory created with config, library, and workspace."
+
+If old-style `pas-config.yaml` exists at root but `.pas/` does not, auto-migrate: move config, library, workspace, processes, and feedback into `.pas/`.
 
 Hooks (`check-self-eval.sh`, `route-feedback.sh`) are loaded automatically by Claude Code from the plugin's `hooks/hooks.json` — no project-level configuration needed.
 
 ## Frustration Detection
 
-If `pas-config.yaml` shows `feedback: disabled` and the user expresses frustration about repeated issues, offer to re-enable feedback collection.
+If `.pas/config.yaml` shows `feedback: disabled` and the user expresses frustration about repeated issues, offer to re-enable feedback collection.
 
 ## Library Bootstrap
 
-First-Run Detection handles initial library setup. When creating a new process that references library skills not yet in the user's project `library/`, copy them from `${CLAUDE_SKILL_DIR}/../../library/`. This makes the user's project self-contained.
+First-Run Detection handles initial library setup. When creating a new process that references library skills not yet in the user's project `.pas/library/`, copy them from `${CLAUDE_SKILL_DIR}/../../library/`. This makes the user's project self-contained.
 
 ## Framework Feedback
 

@@ -23,9 +23,9 @@ Define what the skill does:
 
 Before creating a new skill:
 
-- Check existing skills within the owning agent (`processes/{process}/agents/{agent}/skills/`)
-- Check existing skills within the process (`processes/{process}/`)
-- Check `library/` for global skills that already do this
+- Check existing skills within the owning agent (`.pas/processes/{process}/agents/{agent}/skills/`)
+- Check existing skills within the process (`.pas/processes/{process}/`)
+- Check `.pas/library/` for global skills that already do this
 - If overlap exists: extend the existing skill or reference it instead of duplicating
 
 ### 3. Apply Granularity Heuristics
@@ -79,4 +79,4 @@ After creating the skill, check if it should be in `library/` instead:
 - Is this exact skill already used by another agent in a different process?
 - Would a second process/agent benefit from this skill without modification?
 
-If yes to either: move to `library/{skill-name}/` and reference from both locations. If no: keep it local. Skills start local and graduate to the library only when reuse is proven (used in 2+ places).
+If yes to either: move to `.pas/library/{skill-name}/` and reference from both locations. If no: keep it local. Skills start local and graduate to the library only when reuse is proven (used in 2+ places).
