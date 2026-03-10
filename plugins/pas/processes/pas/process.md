@@ -22,7 +22,7 @@ phases:
     output: created/modified PAS artifacts
     gate: user approves result
 
-status_file: workspace/pas/{slug}/status.yaml
+status_file: .pas/workspace/pas/{slug}/status.yaml
 ---
 
 # PAS Management Process

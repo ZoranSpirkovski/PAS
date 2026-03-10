@@ -123,7 +123,7 @@ if [[ "$ROLE" == "orchestrator" ]]; then
 fi
 
 # Build target path
-TARGET="${BASE_DIR:+${BASE_DIR}/}processes/${PROCESS}/agents/${NAME}"
+TARGET="${BASE_DIR:+${BASE_DIR}/}.pas/processes/${PROCESS}/agents/${NAME}"
 
 # Check directory conflict
 if [[ -d "$TARGET" && "$FORCE" != true ]]; then
@@ -158,7 +158,7 @@ description: ${DESCRIPTION}
 model: ${MODEL}
 tools: ${TOOLS_YAML}
 skills:
-  - library/self-evaluation/SKILL.md
+  - .pas/library/self-evaluation/SKILL.md
 ---
 
 # ${TITLE}
@@ -179,8 +179,8 @@ EOF
   # Orchestrator-specific behavior
   if [[ "$ROLE" == "orchestrator" ]]; then
     cat <<'EOF'
-- Read processes/{process}/process.md on startup
-- Read the orchestration pattern from library/orchestration/ as declared in process.md
+- Read .pas/processes/{process}/process.md on startup
+- Read the orchestration pattern from .pas/library/orchestration/ as declared in process.md
 - Read workspace status to determine where to resume
 - Delegate phases to specialist agents via TeamCreate
 - Interface with the user at gates (supervised mode)
@@ -206,7 +206,7 @@ EOF
 
 # Fix the orchestrator behavior to use actual process name
 if [[ "$ROLE" == "orchestrator" ]]; then
-  sed -i "s|processes/{process}|processes/${PROCESS}|g" "${TARGET}/agent.md"
+  sed -i "s|.pas/processes/{process}|.pas/processes/${PROCESS}|g" "${TARGET}/agent.md"
 fi
 
 echo "  Created ${TARGET}/agent.md"

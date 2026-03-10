@@ -102,20 +102,47 @@ assert_file_contains() {
   fi
 }
 
+assert_dir_exists() {
+  local dir="$1"
+  local test_name="$2"
+  if [ -d "$dir" ]; then
+    PASS=$((PASS + 1))
+    printf "  ${GREEN}PASS${RESET} %s\n" "$test_name"
+  else
+    FAIL=$((FAIL + 1))
+    ERRORS+=("$test_name: dir not found: $dir")
+    printf "  ${RED}FAIL${RESET} %s (dir not found)\n" "$test_name"
+  fi
+}
+
+assert_dir_not_exists() {
+  local dir="$1"
+  local test_name="$2"
+  if [ ! -d "$dir" ]; then
+    PASS=$((PASS + 1))
+    printf "  ${GREEN}PASS${RESET} %s\n" "$test_name"
+  else
+    FAIL=$((FAIL + 1))
+    ERRORS+=("$test_name: dir should not exist: $dir")
+    printf "  ${RED}FAIL${RESET} %s (dir should not exist)\n" "$test_name"
+  fi
+}
+
 # --- Setup test environment ---
 
 TESTDIR=$(mktemp -d)
 trap 'rm -rf "$TESTDIR" /tmp/test-hook-stdout /tmp/test-hook-stderr' EXIT
 
-# Create PAS config
-cat > "$TESTDIR/pas-config.yaml" <<'EOF'
+# Create PAS config under .pas/
+mkdir -p "$TESTDIR/.pas"
+cat > "$TESTDIR/.pas/config.yaml" <<'EOF'
 feedback: enabled
 feedback_disabled_at: ~
 EOF
 
 # Create workspace with in_progress status
-mkdir -p "$TESTDIR/workspace/test/cycle-1/feedback"
-cat > "$TESTDIR/workspace/test/cycle-1/status.yaml" <<'EOF'
+mkdir -p "$TESTDIR/.pas/workspace/test/cycle-1/feedback"
+cat > "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" <<'EOF'
 process: test
 instance: cycle-1
 started_at: 2026-03-10T10:00:00+00:00
@@ -142,23 +169,23 @@ trap 'rm -rf "$TESTDIR" "$NOPADIR" /tmp/test-hook-stdout /tmp/test-hook-stderr' 
 
 run_hook "pas-session-start.sh" \
   "{\"cwd\":\"$NOPADIR\",\"source\":\"startup\",\"session_id\":\"test1234abcd\"}" \
-  0 "session-start: no pas-config.yaml"
+  0 "session-start: no .pas/config.yaml"
 
 run_hook "verify-completion-gate.sh" \
   "{\"cwd\":\"$NOPADIR\",\"stop_hook_active\":false,\"session_id\":\"test1234abcd\"}" \
-  0 "completion-gate: no pas-config.yaml"
+  0 "completion-gate: no .pas/config.yaml"
 
 run_hook "verify-task-completion.sh" \
   "{\"cwd\":\"$NOPADIR\",\"task_subject\":\"[PAS] Self-evaluation\"}" \
-  0 "task-completion: no pas-config.yaml"
+  0 "task-completion: no .pas/config.yaml"
 
 run_hook "check-self-eval.sh" \
   "{\"cwd\":\"$NOPADIR\",\"agent_id\":\"test-agent\"}" \
-  0 "check-self-eval: no pas-config.yaml"
+  0 "check-self-eval: no .pas/config.yaml"
 
 run_hook "route-feedback.sh" \
   "{\"cwd\":\"$NOPADIR\"}" \
-  0 "route-feedback: no pas-config.yaml"
+  0 "route-feedback: no .pas/config.yaml"
 
 # =========================================================================
 # Section 2: workspace.sh — in_progress preference (C1 regression)
@@ -167,8 +194,8 @@ run_hook "route-feedback.sh" \
 printf "\n${BOLD}2. Workspace resolution — in_progress preference (C1)${RESET}\n"
 
 # Create a second workspace that is completed (more recent mtime)
-mkdir -p "$TESTDIR/workspace/test/cycle-0/feedback"
-cat > "$TESTDIR/workspace/test/cycle-0/status.yaml" <<'EOF'
+mkdir -p "$TESTDIR/.pas/workspace/test/cycle-0/feedback"
+cat > "$TESTDIR/.pas/workspace/test/cycle-0/status.yaml" <<'EOF'
 process: test
 instance: cycle-0
 started_at: 2026-03-09T10:00:00+00:00
@@ -177,10 +204,10 @@ status: completed
 EOF
 # Touch completed workspace to make it more recent
 sleep 0.1
-touch "$TESTDIR/workspace/test/cycle-0/status.yaml"
+touch "$TESTDIR/.pas/workspace/test/cycle-0/status.yaml"
 
 # Source workspace.sh and test
-RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$TESTDIR/workspace'")
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$TESTDIR/.pas/workspace'")
 if echo "$RESULT" | grep -q "cycle-1/status.yaml"; then
   PASS=$((PASS + 1))
   printf "  ${GREEN}PASS${RESET} workspace resolution prefers in_progress over completed\n"
@@ -191,14 +218,14 @@ else
 fi
 
 # Test fallback: when no in_progress workspace exists, fall back to most recent
-mkdir -p "$TESTDIR/workspace-fallback/old/feedback"
-cat > "$TESTDIR/workspace-fallback/old/status.yaml" <<'EOF'
+mkdir -p "$TESTDIR/.pas/workspace-fallback/old/feedback"
+cat > "$TESTDIR/.pas/workspace-fallback/old/status.yaml" <<'EOF'
 process: test
 instance: old
 status: completed
 EOF
 
-RESULT2=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$TESTDIR/workspace-fallback'")
+RESULT2=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$TESTDIR/.pas/workspace-fallback'")
 if echo "$RESULT2" | grep -q "old/status.yaml"; then
   PASS=$((PASS + 1))
   printf "  ${GREEN}PASS${RESET} workspace resolution falls back to completed when no in_progress\n"
@@ -222,10 +249,10 @@ assert_stdout_contains "Session ID: abc12345" "session-start: outputs session ID
 assert_stdout_contains "PAS Framework Active" "session-start: outputs framework status"
 assert_stdout_contains "feedback: enabled" "session-start: outputs feedback status"
 
-assert_file_contains "$TESTDIR/workspace/test/cycle-1/status.yaml" \
+assert_file_contains "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" \
   "current_session: abc12345" "session-start: writes current_session to status.yaml"
 
-assert_file_contains "$TESTDIR/workspace/test/cycle-1/status.yaml" \
+assert_file_contains "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" \
   "id: abc12345" "session-start: appends session to sessions list"
 
 # =========================================================================
@@ -240,7 +267,7 @@ run_hook "verify-completion-gate.sh" \
   0 "completion-gate: pending phases → exit 0"
 
 # 4b: All completed, no feedback → exit 2
-cat > "$TESTDIR/workspace/test/cycle-1/status.yaml" <<'EOF'
+cat > "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" <<'EOF'
 process: test
 instance: cycle-1
 status: in_progress
@@ -261,15 +288,15 @@ assert_stderr_contains "COMPLETION GATE FAILED" "completion-gate: stderr shows g
 assert_stderr_contains "orchestrator-abc12345.md" "completion-gate: stderr names expected file"
 
 # 4c: Session-specific feedback exists → exit 0
-echo "No issues detected." > "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
+echo "No issues detected." > "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
 
 run_hook "verify-completion-gate.sh" \
   "{\"cwd\":\"$TESTDIR\",\"stop_hook_active\":false,\"session_id\":\"abc12345xyz\"}" \
   0 "completion-gate: session feedback exists → exit 0"
 
 # 4d: Feedback from DIFFERENT session → exit 2
-rm "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
-echo "No issues detected." > "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-previous.md"
+rm "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
+echo "No issues detected." > "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-previous.md"
 
 run_hook "verify-completion-gate.sh" \
   "{\"cwd\":\"$TESTDIR\",\"stop_hook_active\":false,\"session_id\":\"abc12345xyz\"}" \
@@ -281,7 +308,7 @@ run_hook "verify-completion-gate.sh" \
   0 "completion-gate: stop_hook_active → exit 0 (loop prevention)"
 
 # 4f: Completed workspace → exit 0 (C2 regression — Issue #23)
-cat > "$TESTDIR/workspace/test/cycle-1/status.yaml" <<'EOF'
+cat > "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" <<'EOF'
 process: test
 instance: cycle-1
 status: completed
@@ -299,7 +326,7 @@ run_hook "verify-completion-gate.sh" \
   0 "completion-gate: completed workspace → exit 0 (Issue #23 regression)"
 
 # 4g: Agent feedback enforcement (Issue #19 regression)
-cat > "$TESTDIR/workspace/test/cycle-1/status.yaml" <<'EOF'
+cat > "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" <<'EOF'
 process: test
 instance: cycle-1
 status: in_progress
@@ -315,7 +342,7 @@ phases:
 EOF
 
 # Orchestrator feedback exists, but agent feedback missing → exit 2
-echo "No issues detected." > "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
+echo "No issues detected." > "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
 
 run_hook "verify-completion-gate.sh" \
   "{\"cwd\":\"$TESTDIR\",\"stop_hook_active\":false,\"session_id\":\"abc12345xyz\"}" \
@@ -325,17 +352,17 @@ assert_stderr_contains "Agent self-evaluation missing" \
   "completion-gate: stderr names missing agents (Issue #19)"
 
 # Add agent feedback → exit 0
-echo "No issues detected." > "$TESTDIR/workspace/test/cycle-1/feedback/framework-architect.md"
-echo "No issues detected." > "$TESTDIR/workspace/test/cycle-1/feedback/dx-specialist.md"
+echo "No issues detected." > "$TESTDIR/.pas/workspace/test/cycle-1/feedback/framework-architect.md"
+echo "No issues detected." > "$TESTDIR/.pas/workspace/test/cycle-1/feedback/dx-specialist.md"
 
 run_hook "verify-completion-gate.sh" \
   "{\"cwd\":\"$TESTDIR\",\"stop_hook_active\":false,\"session_id\":\"abc12345xyz\"}" \
   0 "completion-gate: all agent feedback present → exit 0 (Issue #19)"
 
 # Clean up agent feedback files
-rm -f "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
-rm -f "$TESTDIR/workspace/test/cycle-1/feedback/framework-architect.md"
-rm -f "$TESTDIR/workspace/test/cycle-1/feedback/dx-specialist.md"
+rm -f "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
+rm -f "$TESTDIR/.pas/workspace/test/cycle-1/feedback/framework-architect.md"
+rm -f "$TESTDIR/.pas/workspace/test/cycle-1/feedback/dx-specialist.md"
 
 # =========================================================================
 # Section 5: verify-task-completion.sh
@@ -344,7 +371,7 @@ rm -f "$TESTDIR/workspace/test/cycle-1/feedback/dx-specialist.md"
 printf "\n${BOLD}5. verify-task-completion.sh${RESET}\n"
 
 # Restore in_progress status for task tests
-cat > "$TESTDIR/workspace/test/cycle-1/status.yaml" <<'EOF'
+cat > "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" <<'EOF'
 process: test
 instance: cycle-1
 status: in_progress
@@ -356,7 +383,7 @@ phases:
   planning:
     status: completed
 EOF
-rm -f "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-previous.md"
+rm -f "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-previous.md"
 
 # 5a: Self-eval task without feedback → exit 2
 run_hook "verify-task-completion.sh" \
@@ -366,7 +393,7 @@ run_hook "verify-task-completion.sh" \
 assert_stderr_contains "Cannot complete" "task-completion: stderr shows blocker message"
 
 # 5b: Self-eval task with feedback → exit 0
-echo "No issues detected." > "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
+echo "No issues detected." > "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-abc12345.md"
 
 run_hook "verify-task-completion.sh" \
   "{\"cwd\":\"$TESTDIR\",\"task_subject\":\"[PAS] Self-evaluation\"}" \
@@ -378,7 +405,7 @@ run_hook "verify-task-completion.sh" \
   2 "task-completion: finalize without completed status → exit 2"
 
 # 5d: Finalize task with completed status → exit 0
-cat > "$TESTDIR/workspace/test/cycle-1/status.yaml" <<'EOF'
+cat > "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" <<'EOF'
 process: test
 instance: cycle-1
 status: completed
@@ -408,7 +435,7 @@ run_hook "verify-task-completion.sh" \
 printf "\n${BOLD}6. check-self-eval.sh${RESET}\n"
 
 # Restore in_progress status
-cat > "$TESTDIR/workspace/test/cycle-1/status.yaml" <<'EOF'
+cat > "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" <<'EOF'
 process: test
 instance: cycle-1
 status: in_progress
@@ -419,14 +446,14 @@ phases:
 EOF
 
 # 6a: Agent with feedback file → exit 0
-echo "No issues detected." > "$TESTDIR/workspace/test/cycle-1/feedback/test-agent.md"
+echo "No issues detected." > "$TESTDIR/.pas/workspace/test/cycle-1/feedback/test-agent.md"
 
 run_hook "check-self-eval.sh" \
   "{\"cwd\":\"$TESTDIR\",\"agent_id\":\"test-agent\"}" \
   0 "check-self-eval: agent feedback exists → exit 0"
 
 # 6b: Agent without feedback → exit 2
-rm "$TESTDIR/workspace/test/cycle-1/feedback/test-agent.md"
+rm "$TESTDIR/.pas/workspace/test/cycle-1/feedback/test-agent.md"
 
 run_hook "check-self-eval.sh" \
   "{\"cwd\":\"$TESTDIR\",\"agent_id\":\"test-agent\"}" \
@@ -435,7 +462,7 @@ run_hook "check-self-eval.sh" \
 assert_stderr_contains "SELF-EVALUATION MISSING" "check-self-eval: stderr shows missing message"
 
 # 6c: Feedback disabled → exit 0
-cat > "$TESTDIR/pas-config.yaml" <<'EOF'
+cat > "$TESTDIR/.pas/config.yaml" <<'EOF'
 feedback: disabled
 EOF
 
@@ -444,7 +471,7 @@ run_hook "check-self-eval.sh" \
   0 "check-self-eval: feedback disabled → exit 0"
 
 # Restore feedback enabled
-cat > "$TESTDIR/pas-config.yaml" <<'EOF'
+cat > "$TESTDIR/.pas/config.yaml" <<'EOF'
 feedback: enabled
 feedback_disabled_at: ~
 EOF
@@ -456,10 +483,10 @@ EOF
 printf "\n${BOLD}7. route-feedback.sh${RESET}\n"
 
 # 7a: Route signals from feedback file, preserve file, mark as routed
-rm -f "$TESTDIR/workspace/test/cycle-1/feedback/"*.md
-rm -f "$TESTDIR/workspace/test/cycle-1/feedback/"*.routed
+rm -f "$TESTDIR/.pas/workspace/test/cycle-1/feedback/"*.md
+rm -f "$TESTDIR/.pas/workspace/test/cycle-1/feedback/"*.routed
 
-cat > "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-abc12345.md" <<'EOF'
+cat > "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-abc12345.md" <<'EOF'
 [OQI-01]
 Target: process:test
 Degraded: Test signal for routing
@@ -467,26 +494,26 @@ Priority: LOW
 EOF
 
 # Create the process feedback dir for routing target
-mkdir -p "$TESTDIR/processes/test/feedback/backlog"
+mkdir -p "$TESTDIR/.pas/processes/test/feedback/backlog"
 
 run_hook "route-feedback.sh" \
   "{\"cwd\":\"$TESTDIR\"}" \
   0 "route-feedback: routes signals → exit 0"
 
-assert_file_exists "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-abc12345.md" \
+assert_file_exists "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-abc12345.md" \
   "route-feedback: feedback file preserved (not deleted)"
 
-assert_file_exists "$TESTDIR/workspace/test/cycle-1/feedback/orchestrator-abc12345.md.routed" \
+assert_file_exists "$TESTDIR/.pas/workspace/test/cycle-1/feedback/orchestrator-abc12345.md.routed" \
   "route-feedback: .routed marker created"
 
 # 7b: Second run skips already-routed files
-BEFORE_COUNT=$(find "$TESTDIR/processes/test/feedback/backlog" -name "*.md" 2>/dev/null | wc -l)
+BEFORE_COUNT=$(find "$TESTDIR/.pas/processes/test/feedback/backlog" -name "*.md" 2>/dev/null | wc -l)
 
 run_hook "route-feedback.sh" \
   "{\"cwd\":\"$TESTDIR\"}" \
   0 "route-feedback: second run exits 0"
 
-AFTER_COUNT=$(find "$TESTDIR/processes/test/feedback/backlog" -name "*.md" 2>/dev/null | wc -l)
+AFTER_COUNT=$(find "$TESTDIR/.pas/processes/test/feedback/backlog" -name "*.md" 2>/dev/null | wc -l)
 if [ "$BEFORE_COUNT" -eq "$AFTER_COUNT" ]; then
   PASS=$((PASS + 1))
   printf "  ${GREEN}PASS${RESET} route-feedback: no duplicate routing on second run\n"
@@ -500,12 +527,12 @@ fi
 # Section 8: pas-create-process script (C3, C4 regression)
 # =========================================================================
 
-printf "\n${BOLD}8. pas-create-process — lifecycle ref + --force safety${RESET}\n"
+printf "\n${BOLD}8. pas-create-process — .pas/ paths + --force safety${RESET}\n"
 
 CREATE_SCRIPT="$HOOKS_DIR/../processes/pas/agents/orchestrator/skills/creating-processes/scripts/pas-create-process"
 GEN_DIR=$(mktemp -d)
 
-# 8a: Generated process includes lifecycle section
+# 8a: Generated process lives under .pas/processes/
 bash "$CREATE_SCRIPT" \
   --name test-proc \
   --goal "Test process" \
@@ -514,28 +541,44 @@ bash "$CREATE_SCRIPT" \
   --input "data:Test input" \
   --base-dir "$GEN_DIR" 2>/dev/null
 
-if grep -q "library/orchestration/lifecycle.md" "$GEN_DIR/processes/test-proc/process.md"; then
-  PASS=$((PASS + 1))
-  printf "  ${GREEN}PASS${RESET} pas-create-process: process.md references lifecycle.md (C3)\n"
-else
-  FAIL=$((FAIL + 1))
-  ERRORS+=("process.md missing lifecycle.md reference")
-  printf "  ${RED}FAIL${RESET} pas-create-process: process.md missing lifecycle.md reference\n"
-fi
+assert_dir_exists "$GEN_DIR/.pas/processes/test-proc" \
+  "pas-create-process: process created under .pas/processes/"
 
-# 8b: Generated thin launcher includes lifecycle reference
-if grep -q "lifecycle.md" "$GEN_DIR/.claude/skills/test-proc/SKILL.md"; then
-  PASS=$((PASS + 1))
-  printf "  ${GREEN}PASS${RESET} pas-create-process: thin launcher references lifecycle.md (C3)\n"
-else
-  FAIL=$((FAIL + 1))
-  ERRORS+=("thin launcher missing lifecycle.md reference")
-  printf "  ${RED}FAIL${RESET} pas-create-process: thin launcher missing lifecycle.md reference\n"
-fi
+assert_file_exists "$GEN_DIR/.pas/processes/test-proc/process.md" \
+  "pas-create-process: process.md exists"
 
-# 8c: --force preserves reference/ directory (C4)
-mkdir -p "$GEN_DIR/processes/test-proc/reference/source"
-echo "precious data" > "$GEN_DIR/processes/test-proc/reference/source/material.txt"
+# 8b: process.md references .pas/ paths
+assert_file_contains "$GEN_DIR/.pas/processes/test-proc/process.md" \
+  ".pas/library/orchestration/lifecycle.md" \
+  "pas-create-process: process.md references .pas/library/lifecycle.md"
+
+assert_file_contains "$GEN_DIR/.pas/processes/test-proc/process.md" \
+  "status_file: .pas/workspace/test-proc/" \
+  "pas-create-process: status_file uses .pas/workspace/"
+
+# 8c: Thin launcher in .claude/skills/ references .pas/ paths
+assert_file_exists "$GEN_DIR/.claude/skills/test-proc/SKILL.md" \
+  "pas-create-process: thin launcher in .claude/skills/"
+
+assert_file_contains "$GEN_DIR/.claude/skills/test-proc/SKILL.md" \
+  ".pas/processes/test-proc/process.md" \
+  "pas-create-process: thin launcher references .pas/processes/"
+
+assert_file_contains "$GEN_DIR/.claude/skills/test-proc/SKILL.md" \
+  ".pas/library/orchestration/lifecycle.md" \
+  "pas-create-process: thin launcher references .pas/library/"
+
+# 8d: No artifacts at project root
+assert_dir_not_exists "$GEN_DIR/processes" \
+  "pas-create-process: no processes/ at project root"
+
+# 8e: feedback/backlog exists
+assert_dir_exists "$GEN_DIR/.pas/processes/test-proc/feedback/backlog" \
+  "pas-create-process: feedback/backlog exists"
+
+# 8f: --force preserves reference/ directory (C4)
+mkdir -p "$GEN_DIR/.pas/processes/test-proc/reference/source"
+echo "precious data" > "$GEN_DIR/.pas/processes/test-proc/reference/source/material.txt"
 
 bash "$CREATE_SCRIPT" \
   --name test-proc \
@@ -546,8 +589,8 @@ bash "$CREATE_SCRIPT" \
   --base-dir "$GEN_DIR" \
   --force 2>/dev/null
 
-if [ -f "$GEN_DIR/processes/test-proc/reference/source/material.txt" ]; then
-  CONTENT=$(cat "$GEN_DIR/processes/test-proc/reference/source/material.txt")
+if [ -f "$GEN_DIR/.pas/processes/test-proc/reference/source/material.txt" ]; then
+  CONTENT=$(cat "$GEN_DIR/.pas/processes/test-proc/reference/source/material.txt")
   if [ "$CONTENT" = "precious data" ]; then
     PASS=$((PASS + 1))
     printf "  ${GREEN}PASS${RESET} pas-create-process: --force preserves reference/ (C4)\n"
@@ -577,10 +620,11 @@ run_hook "pas-session-start.sh" \
 
 # 9b: Empty workspace directory — no status.yaml found
 EMPTYDIR=$(mktemp -d)
-cat > "$EMPTYDIR/pas-config.yaml" <<'EOF'
+mkdir -p "$EMPTYDIR/.pas"
+cat > "$EMPTYDIR/.pas/config.yaml" <<'EOF'
 feedback: enabled
 EOF
-mkdir -p "$EMPTYDIR/workspace"
+mkdir -p "$EMPTYDIR/.pas/workspace"
 
 run_hook "verify-completion-gate.sh" \
   "{\"cwd\":\"$EMPTYDIR\",\"stop_hook_active\":false,\"session_id\":\"test1234\"}" \
@@ -590,7 +634,8 @@ rm -rf "$EMPTYDIR"
 
 # 9c: No workspace directory at all
 NOWSDIR=$(mktemp -d)
-cat > "$NOWSDIR/pas-config.yaml" <<'EOF'
+mkdir -p "$NOWSDIR/.pas"
+cat > "$NOWSDIR/.pas/config.yaml" <<'EOF'
 feedback: enabled
 EOF
 
@@ -599,6 +644,71 @@ run_hook "verify-completion-gate.sh" \
   0 "edge-case: no workspace dir → exit 0"
 
 rm -rf "$NOWSDIR"
+
+# =========================================================================
+# Section 10: Migration — old-style layout auto-migrates
+# =========================================================================
+
+printf "\n${BOLD}10. Migration — old-style layout auto-migrates${RESET}\n"
+
+MIGDIR=$(mktemp -d)
+
+# Set up old-style layout at root
+cat > "$MIGDIR/pas-config.yaml" <<'EOF'
+feedback: enabled
+feedback_disabled_at: ~
+EOF
+mkdir -p "$MIGDIR/workspace/test/cycle-1/feedback"
+cat > "$MIGDIR/workspace/test/cycle-1/status.yaml" <<'EOF'
+process: test
+instance: cycle-1
+status: in_progress
+
+phases:
+  work:
+    status: completed
+EOF
+mkdir -p "$MIGDIR/processes/test/feedback/backlog"
+mkdir -p "$MIGDIR/library/orchestration"
+
+# Run session-start hook — should trigger migration
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$MIGDIR\",\"source\":\"startup\",\"session_id\":\"mig12345xyz\"}" \
+  0 "migration: session-start triggers migration → exit 0"
+
+# Verify migration happened
+assert_file_exists "$MIGDIR/.pas/config.yaml" \
+  "migration: .pas/config.yaml exists after migration"
+
+assert_dir_exists "$MIGDIR/.pas/workspace" \
+  "migration: .pas/workspace/ exists after migration"
+
+assert_dir_exists "$MIGDIR/.pas/processes" \
+  "migration: .pas/processes/ exists after migration"
+
+assert_dir_exists "$MIGDIR/.pas/library" \
+  "migration: .pas/library/ exists after migration"
+
+# Old paths should be gone
+if [ ! -f "$MIGDIR/pas-config.yaml" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} migration: old pas-config.yaml removed\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("migration: old pas-config.yaml still exists")
+  printf "  ${RED}FAIL${RESET} migration: old pas-config.yaml still exists\n"
+fi
+
+if [ ! -d "$MIGDIR/workspace" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} migration: old workspace/ removed\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("migration: old workspace/ still exists")
+  printf "  ${RED}FAIL${RESET} migration: old workspace/ still exists\n"
+fi
+
+rm -rf "$MIGDIR"
 
 # =========================================================================
 # Summary

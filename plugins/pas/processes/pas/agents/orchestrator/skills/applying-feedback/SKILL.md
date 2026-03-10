@@ -13,10 +13,10 @@ Review and apply accumulated feedback signals from backlogs across all PAS artif
 
 Recursively scan for pending feedback:
 
-- `processes/*/feedback/backlog/` — process-level signals
-- `processes/*/agents/*/feedback/backlog/` — agent-level signals
-- `processes/*/agents/*/skills/*/feedback/backlog/` — skill-level signals
-- `library/*/feedback/backlog/` — library skill signals
+- `.pas/processes/*/feedback/backlog/` — process-level signals
+- `.pas/processes/*/agents/*/feedback/backlog/` — agent-level signals
+- `.pas/processes/*/agents/*/skills/*/feedback/backlog/` — skill-level signals
+- `.pas/library/*/feedback/backlog/` — library skill signals
 
 List all directories containing `.md` files (pending signals).
 

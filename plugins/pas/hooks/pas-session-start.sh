@@ -67,7 +67,7 @@ ${SESSION_CONTEXT}
 When running a PAS process, you MUST follow this lifecycle:
 
 STARTUP (before any work):
-1. Create workspace: mkdir -p workspace/{process}/{slug}/{discovery,planning,execution/changes,validation,feedback}
+1. Create workspace: mkdir -p .pas/workspace/{process}/{slug}/{discovery,planning,execution/changes,validation,feedback}
 2. Write status.yaml with all phases as pending
 3. Create Claude Code tasks for each phase AND for shutdown steps:
    - One task per phase from process.md
@@ -76,7 +76,7 @@ STARTUP (before any work):
    - Task: "[PAS] Finalize status" — set status.yaml to completed with completed_at timestamp
 
 SHUTDOWN (after all phases complete):
-1. Write self-evaluation to workspace/{process}/{slug}/feedback/orchestrator-${SESSION_SHORT:-SESSION_ID}.md
+1. Write self-evaluation to .pas/workspace/{process}/{slug}/feedback/orchestrator-${SESSION_SHORT:-SESSION_ID}.md
 2. Route any framework:pas signals as GitHub issues
 3. Update status.yaml: set status to completed with completed_at timestamp
 4. Mark all shutdown tasks as completed

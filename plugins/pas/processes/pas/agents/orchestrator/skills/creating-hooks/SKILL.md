@@ -28,7 +28,7 @@ Define what the hook does:
 
 ### 1a. PAS Feedback Hook Setup
 
-If creating hooks for a PAS process and `pas-config.yaml` has `feedback: enabled`:
+If creating hooks for a PAS process and `.pas/config.yaml` has `feedback: enabled`:
 
 - Read `references/pas-feedback-hooks.md`
 - Generate enhanced `check-self-eval.sh` (SubagentStop) and `route-feedback.sh` (Stop)

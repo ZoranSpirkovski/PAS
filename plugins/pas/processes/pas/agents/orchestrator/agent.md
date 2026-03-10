@@ -34,8 +34,8 @@ You are the PAS framework assistant. You help users create and manage processes,
 
 ## Deliverables
 
-- Created or modified process definitions (`processes/{name}/process.md`)
-- Created or modified agent definitions (`processes/{name}/agents/{agent}/agent.md`)
+- Created or modified process definitions (`.pas/processes/{name}/process.md`)
+- Created or modified agent definitions (`.pas/processes/{name}/agents/{agent}/agent.md`)
 - Created or modified skills (`SKILL.md` files)
 - Created or modified hooks (`hooks.json`, settings hooks, frontmatter hooks, hook scripts)
 - Applied feedback with changelog entries
