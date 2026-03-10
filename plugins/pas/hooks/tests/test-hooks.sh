@@ -609,10 +609,46 @@ fi
 rm -rf "$GEN_DIR"
 
 # =========================================================================
-# Section 9: Edge cases
+# Section 9: pas-development-session-start.sh
 # =========================================================================
 
-printf "\n${BOLD}9. Edge cases${RESET}\n"
+printf "\n${BOLD}9. pas-development-session-start.sh${RESET}\n"
+
+# 9a: PAS development project — outputs routing
+DEVDIR=$(mktemp -d)
+mkdir -p "$DEVDIR/.claude/skills/pas-development"
+echo "---" > "$DEVDIR/.claude/skills/pas-development/SKILL.md"
+
+run_hook "pas-development-session-start.sh" \
+  "{\"cwd\":\"$DEVDIR\",\"session_id\":\"test1234\"}" \
+  0 "pas-dev-session-start: PAS dev project → exit 0"
+
+assert_stdout_contains "DEVELOPMENT ROUTING" \
+  "pas-dev-session-start: outputs development routing"
+
+# 9b: Non-PAS-development project — silent
+NONDEVDIR=$(mktemp -d)
+
+run_hook "pas-development-session-start.sh" \
+  "{\"cwd\":\"$NONDEVDIR\",\"session_id\":\"test1234\"}" \
+  0 "pas-dev-session-start: non-dev project → exit 0"
+
+if ! grep -q "DEVELOPMENT ROUTING" /tmp/test-hook-stdout 2>/dev/null; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} pas-dev-session-start: no output for non-dev project\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("pas-dev-session-start: should not output for non-dev project")
+  printf "  ${RED}FAIL${RESET} pas-dev-session-start: should not output for non-dev project\n"
+fi
+
+rm -rf "$DEVDIR" "$NONDEVDIR"
+
+# =========================================================================
+# Section 10: Edge cases
+# =========================================================================
+
+printf "\n${BOLD}10. Edge cases${RESET}\n"
 
 # 9a: Missing session_id — hooks should handle gracefully
 run_hook "pas-session-start.sh" \
@@ -647,10 +683,10 @@ run_hook "verify-completion-gate.sh" \
 rm -rf "$NOWSDIR"
 
 # =========================================================================
-# Section 10: Migration — old-style layout auto-migrates
+# Section 11: Migration — old-style layout auto-migrates
 # =========================================================================
 
-printf "\n${BOLD}10. Migration — old-style layout auto-migrates${RESET}\n"
+printf "\n${BOLD}11. Migration — old-style layout auto-migrates${RESET}\n"
 
 MIGDIR=$(mktemp -d)
 
