@@ -83,6 +83,7 @@ SHUTDOWN (after all phases complete):
 
 ENFORCEMENT: Hooks will block you from stopping or completing tasks if deliverables are missing.
 CREATION ROUTING: When the user wants to create a process, agent, skill, or workflow, offer /pas:pas as the tool to do it. PAS provides structured creation with brainstorming, proper scaffolding, and feedback integration.
+DEVELOPMENT ROUTING: When changes are being made to the PAS plugin (plugins/pas/), invoke /pas-development instead of editing files directly. It provides structured discovery, planning, execution, validation, and release with feedback collection.
 Feedback files MUST include your session ID (${SESSION_SHORT:-unknown}) in the filename.
 EOF
 
