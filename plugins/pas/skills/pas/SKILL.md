@@ -23,6 +23,7 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 - **Creating something new** (process, pipeline, workflow): read `creating-processes/SKILL.md`
 - **Creating hooks** (hook, lifecycle, guard, automation, when something happens): read `creating-hooks/SKILL.md`
 - **Applying feedback** (upgrade, improve, what feedback exists): read `applying-feedback/SKILL.md`
+- **Upgrading** (upgrade, update, migrate, what's new, check setup): read `upgrading/SKILL.md`
 - **Modifying existing** (change, update, add phase): find the target in `.pas/processes/` or `.pas/library/`, read it, then use creation skills to apply the modification
 - **Running a process** (run article, start pipeline): point to thin launcher (e.g., `/article`)
 - **Visualizing a process** (visualize, overview, view, HTML, diagram): read `${CLAUDE_SKILL_DIR}/../../library/visualize-process/SKILL.md`
