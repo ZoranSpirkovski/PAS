@@ -248,6 +248,7 @@ run_hook "pas-session-start.sh" \
 assert_stdout_contains "Session ID: abc12345" "session-start: outputs session ID"
 assert_stdout_contains "PAS Framework Active" "session-start: outputs framework status"
 assert_stdout_contains "feedback: enabled" "session-start: outputs feedback status"
+assert_stdout_contains "CREATION ROUTING" "session-start: outputs creation routing instruction"
 
 assert_file_contains "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" \
   "current_session: abc12345" "session-start: writes current_session to status.yaml"
