@@ -547,10 +547,10 @@ assert_dir_exists "$GEN_DIR/.pas/processes/test-proc" \
 assert_file_exists "$GEN_DIR/.pas/processes/test-proc/process.md" \
   "pas-create-process: process.md exists"
 
-# 8b: process.md references .pas/ paths
+# 8b: process.md references plugin library
 assert_file_contains "$GEN_DIR/.pas/processes/test-proc/process.md" \
-  ".pas/library/orchestration/lifecycle.md" \
-  "pas-create-process: process.md references .pas/library/lifecycle.md"
+  "CLAUDE_PLUGIN_ROOT}/library/orchestration/lifecycle.md" \
+  "pas-create-process: process.md references plugin library lifecycle.md"
 
 assert_file_contains "$GEN_DIR/.pas/processes/test-proc/process.md" \
   "status_file: .pas/workspace/test-proc/" \
@@ -565,8 +565,8 @@ assert_file_contains "$GEN_DIR/.claude/skills/test-proc/SKILL.md" \
   "pas-create-process: thin launcher references .pas/processes/"
 
 assert_file_contains "$GEN_DIR/.claude/skills/test-proc/SKILL.md" \
-  ".pas/library/orchestration/lifecycle.md" \
-  "pas-create-process: thin launcher references .pas/library/"
+  "CLAUDE_PLUGIN_ROOT}/library/orchestration/lifecycle.md" \
+  "pas-create-process: thin launcher references plugin library"
 
 # 8d: No artifacts at project root
 assert_dir_not_exists "$GEN_DIR/processes" \
