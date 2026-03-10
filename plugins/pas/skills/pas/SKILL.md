@@ -12,7 +12,6 @@ All PAS artifacts in the user's project live under `.pas/` at the project root:
 
 - `.pas/config.yaml` — framework configuration
 - `.pas/processes/` — process definitions, agents, skills, feedback backlogs
-- `.pas/library/` — shared skills (orchestration, self-evaluation, message-routing)
 - `.pas/workspace/` — execution instances, status tracking, session feedback
 
 When reading, modifying, or creating artifacts — always resolve paths relative to `.pas/`.
@@ -41,9 +40,8 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 If `.pas/config.yaml` does not exist at the project root, run self-setup:
 
 1. Create `.pas/config.yaml` with defaults: `feedback: enabled`, `feedback_disabled_at: ~`
-2. Create `.pas/library/` with core skills by copying from the PAS plugin's library: `self-evaluation/`, `message-routing/`, `orchestration/`
-3. Create `.pas/workspace/` directory
-4. Confirm to the user: "PAS initialized — .pas/ directory created with config, library, and workspace."
+2. Create `.pas/workspace/` directory
+3. Confirm to the user: "PAS initialized — `.pas/` directory created with config and workspace."
 
 If old-style `pas-config.yaml` exists at root but `.pas/` does not, auto-migrate: move config, library, workspace, processes, and feedback into `.pas/`.
 
@@ -55,7 +53,7 @@ If `.pas/config.yaml` shows `feedback: disabled` and the user expresses frustrat
 
 ## Library Bootstrap
 
-First-Run Detection handles initial library setup. When creating a new process that references library skills not yet in the user's project `.pas/library/`, copy them from `${CLAUDE_SKILL_DIR}/../../library/`. This makes the user's project self-contained.
+Processes reference the plugin library directly via `${CLAUDE_PLUGIN_ROOT}/library/` — no copying needed. The library lives in the plugin and is always available at runtime.
 
 ## Framework Feedback
 

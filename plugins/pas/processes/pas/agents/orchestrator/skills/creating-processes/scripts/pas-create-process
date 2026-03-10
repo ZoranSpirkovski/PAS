@@ -217,7 +217,7 @@ EOF
 
   echo "## Lifecycle"
   echo ""
-  echo "This process follows the shared lifecycle protocol. Read \`.pas/library/orchestration/lifecycle.md\` for:"
+  echo "This process follows the shared lifecycle protocol. Read \`\${CLAUDE_PLUGIN_ROOT}/library/orchestration/lifecycle.md\` for:"
   echo ""
   echo "- Workspace creation and status tracking"
   echo "- Task creation (required — create a Claude Code task for each phase)"
@@ -301,8 +301,8 @@ description: ${GOAL}
 ---
 
 Read \`.pas/processes/${NAME}/process.md\` for the process definition.
-Read \`.pas/library/orchestration/lifecycle.md\` for shared lifecycle protocol (workspace, tasks, status, shutdown).
-Read the orchestration pattern from \`.pas/library/orchestration/\` as specified in the process.
+Read \`\${CLAUDE_PLUGIN_ROOT}/library/orchestration/lifecycle.md\` for shared lifecycle protocol (workspace, tasks, status, shutdown).
+Read the orchestration pattern from \`\${CLAUDE_PLUGIN_ROOT}/library/orchestration/\` as specified in the process.
 Execute.
 EOF
 echo "  Created ${LAUNCHER_DIR}/SKILL.md"

@@ -76,7 +76,7 @@ For simple processes (1-3 phases, similar skills), the orchestrator handles ever
 
 ### 5. Select Orchestration Pattern
 
-Read the orchestration decision matrix. If `.pas/library/orchestration/SKILL.md` doesn't exist in the user's project yet, bootstrap it by copying from the PAS plugin's library (the `library/` directory next to `processes/` in the plugin). Then apply the decision matrix:
+Read `${CLAUDE_PLUGIN_ROOT}/library/orchestration/SKILL.md` for the decision matrix. Then apply it:
 
 | Agents | Discussion needed? | Parallel phases? | Pattern |
 |--------|-------------------|-------------------|---------|

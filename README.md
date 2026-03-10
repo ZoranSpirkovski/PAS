@@ -56,7 +56,63 @@ PAS will ask clarifying questions (one at a time, brainstorming-style), then cre
 - A thin launcher so you can run it with a slash command
 - Library skills (orchestration patterns, self-evaluation, feedback routing)
 
-On first use, PAS creates `pas-config.yaml`, `library/`, and `workspace/` directories in your project root.
+On first use, PAS creates `.pas/config.yaml` and `.pas/workspace/` in your project root.
+
+## Walkthrough
+
+A full lifecycle example using the code review pipeline from Quick Start.
+
+### 1. Create a Process
+
+```
+/pas:pas I want to build a code review pipeline
+```
+
+PAS asks clarifying questions — how many reviewers, what languages, which quality gates — then generates everything:
+
+```
+.pas/
+  config.yaml
+  workspace/
+  processes/code-review/
+    process.md              # Phases, agents, gates
+    agents/
+      orchestrator/         # Coordinates the pipeline
+      reviewer/             # Reviews code changes
+    modes/
+      supervised.md
+      autonomous.md
+    feedback/backlog/
+.claude/skills/code-review/
+    SKILL.md                # Thin launcher — invoke with /code-review
+```
+
+`process.md` defines the phases (e.g., diff analysis, review, summary), the gates between them, and which agent handles each phase. Agents get identities, tools, and skills. The thin launcher in `.claude/skills/` lets you run the whole pipeline with a single slash command.
+
+### 2. Run the Process
+
+```
+/code-review
+```
+
+The orchestrator reads `process.md`, creates a workspace instance at `.pas/workspace/code-review/{slug}/`, and executes each phase in order. Gates between phases enforce quality checks — a phase only advances when its gate criteria are met. The workspace tracks pipeline state in `status.yaml` so runs are resumable.
+
+### 3. Feedback Loop
+
+At shutdown, every agent writes self-evaluation signals:
+
+- **PPU** — a workflow improvement (e.g., "check test coverage before style review")
+- **OQI** — a quality issue in output (e.g., "missed edge case in error handling review")
+- **GATE** — a change that should not be made (stability guard)
+- **STA** — a behavior that must not regress (stability anchor)
+
+Signals route automatically to the relevant artifact's `feedback/backlog/`. To review and apply them:
+
+```
+/pas:pas what feedback exists?
+```
+
+PAS shows accumulated signals grouped by artifact, then applies improvements directly — updating process definitions, agent instructions, or skill logic. Each run makes the pipeline better.
 
 ## Core Concepts
 
