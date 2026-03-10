@@ -1,5 +1,5 @@
 ---
-name: pas-development-quick
+name: quick
 goal: Evolve the PAS framework using superpowers skills for fast iteration without multi-agent teams
 version: 1.0
 orchestration: solo
@@ -13,22 +13,22 @@ phases:
   discovery:
     agent: orchestrator
     input: directive OR roadmap
-    output: workspace/pas-development-quick/{slug}/discovery/priorities.md
+    output: workspace/pas-development/quick/{slug}/discovery/priorities.md
     gate: product owner approves priorities
   planning:
     agent: orchestrator
     input: discovery/priorities.md
-    output: workspace/pas-development-quick/{slug}/planning/implementation-plan.md
+    output: workspace/pas-development/quick/{slug}/planning/implementation-plan.md
     gate: product owner approves plan
   execution:
     agent: orchestrator
     input: planning/implementation-plan.md
-    output: workspace/pas-development-quick/{slug}/execution/changes/
+    output: workspace/pas-development/quick/{slug}/execution/changes/
     gate: product owner reviews changes
   validation:
     agent: orchestrator
     input: execution/changes/
-    output: workspace/pas-development-quick/{slug}/validation/report.md
+    output: workspace/pas-development/quick/{slug}/validation/report.md
     gate: product owner approves release
   release:
     agent: orchestrator
@@ -36,22 +36,22 @@ phases:
     output: PR URL
     gate: product owner confirms merge
 
-status_file: .pas/workspace/pas-development-quick/{slug}/status.yaml
+status_file: .pas/workspace/pas-development/quick/{slug}/status.yaml
 ---
 
-# Pas Development Quick
+# Quick Cycle
 
 A lightweight version of pas-development that uses superpowers skills instead of multi-agent teams. Same 5 phases, solo orchestrator, faster iteration.
 
 ## Phases
 
-**Discovery**: Agent `orchestrator` takes `directive OR roadmap` and produces `workspace/pas-development-quick/{slug}/discovery/priorities.md`. Gate: product owner approves priorities.
+**Discovery**: Agent `orchestrator` takes `directive OR roadmap` and produces `workspace/pas-development/quick/{slug}/discovery/priorities.md`. Gate: product owner approves priorities.
 
-**Planning**: Agent `orchestrator` takes `discovery/priorities.md` and produces `workspace/pas-development-quick/{slug}/planning/implementation-plan.md`. Gate: product owner approves plan.
+**Planning**: Agent `orchestrator` takes `discovery/priorities.md` and produces `workspace/pas-development/quick/{slug}/planning/implementation-plan.md`. Gate: product owner approves plan.
 
-**Execution**: Agent `orchestrator` takes `planning/implementation-plan.md` and produces `workspace/pas-development-quick/{slug}/execution/changes/`. Gate: product owner reviews changes.
+**Execution**: Agent `orchestrator` takes `planning/implementation-plan.md` and produces `workspace/pas-development/quick/{slug}/execution/changes/`. Gate: product owner reviews changes.
 
-**Validation**: Agent `orchestrator` takes `execution/changes/` and produces `workspace/pas-development-quick/{slug}/validation/report.md`. Gate: product owner approves release.
+**Validation**: Agent `orchestrator` takes `execution/changes/` and produces `workspace/pas-development/quick/{slug}/validation/report.md`. Gate: product owner approves release.
 
 **Release**: Agent `orchestrator` takes `validation/report.md` and produces `PR URL`. Gate: product owner confirms merge.
 

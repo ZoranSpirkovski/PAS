@@ -33,12 +33,12 @@ After multi-agent discovery completes, if the findings surface complexity or tra
 
 ### Quick cycle
 
-Read `.pas/processes/pas-development-quick/process.md` for the process definition.
+Read `.pas/processes/pas-development/processes/quick/process.md` for the process definition.
 Read the orchestration pattern from `${CLAUDE_PLUGIN_ROOT}/library/orchestration/` as specified in the process.
 Execute.
 
 ### Resume
 
-Find the most recent workspace under `.pas/workspace/pas-development/` or `.pas/workspace/pas-development-quick/` with `status: in_progress` in status.yaml.
+Find the most recent workspace under `.pas/workspace/pas-development/` or `.pas/workspace/pas-development/quick/` with `status: in_progress` in status.yaml.
 Read that process's definition and orchestration pattern.
 Resume from the last completed phase.
