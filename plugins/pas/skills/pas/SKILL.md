@@ -6,6 +6,17 @@ description: Use when creating, managing, or improving processes, agents, and sk
 Read `${CLAUDE_SKILL_DIR}/../../processes/pas/process.md` for the process definition.
 Read the orchestration pattern from `${CLAUDE_SKILL_DIR}/../../library/orchestration/` as specified in the process.
 
+## Project Convention
+
+All PAS artifacts in the user's project live under `.pas/` at the project root:
+
+- `.pas/config.yaml` — framework configuration
+- `.pas/processes/` — process definitions, agents, skills, feedback backlogs
+- `.pas/library/` — shared skills (orchestration, self-evaluation, message-routing)
+- `.pas/workspace/` — execution instances, status tracking, session feedback
+
+When reading, modifying, or creating artifacts — always resolve paths relative to `.pas/`.
+
 ## Quick Routing
 
 Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR}/../../processes/pas/agents/orchestrator/skills/`:
@@ -13,7 +24,7 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 - **Creating something new** (process, pipeline, workflow): read `creating-processes/SKILL.md`
 - **Creating hooks** (hook, lifecycle, guard, automation, when something happens): read `creating-hooks/SKILL.md`
 - **Applying feedback** (upgrade, improve, what feedback exists): read `applying-feedback/SKILL.md`
-- **Modifying existing** (change, update, add phase): read the target artifact, then use creation skills
+- **Modifying existing** (change, update, add phase): find the target in `.pas/processes/` or `.pas/library/`, read it, then use creation skills to apply the modification
 - **Running a process** (run article, start pipeline): point to thin launcher (e.g., `/article`)
 - **Visualizing a process** (visualize, overview, view, HTML, diagram): read `${CLAUDE_SKILL_DIR}/../../library/visualize-process/SKILL.md`
 - **Information query** (what exists, status, list): survey `.pas/processes/`, `.pas/library/`, `.pas/workspace/`
