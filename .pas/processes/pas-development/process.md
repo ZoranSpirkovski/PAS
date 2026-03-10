@@ -15,34 +15,34 @@ phases:
     agent: [feedback-analyst, community-manager, framework-architect, dx-specialist, ecosystem-analyst]
     pattern: discussion
     input: directive OR active roadmap milestone OR accumulated feedback signals + open GitHub issues
-    output: workspace/pas-development/{slug}/discovery/priorities.md
+    output: .pas/workspace/pas-development/{slug}/discovery/priorities.md
     gate: product owner approves priorities
 
   planning:
     agent: framework-architect
-    input: workspace/pas-development/{slug}/discovery/priorities.md
-    output: workspace/pas-development/{slug}/planning/implementation-plan.md
+    input: .pas/workspace/pas-development/{slug}/discovery/priorities.md
+    output: .pas/workspace/pas-development/{slug}/planning/implementation-plan.md
     gate: product owner approves plan
 
   execution:
     agent: [framework-architect, dx-specialist, feedback-analyst, community-manager]
-    input: workspace/pas-development/{slug}/planning/implementation-plan.md
-    output: workspace/pas-development/{slug}/execution/changes/
+    input: .pas/workspace/pas-development/{slug}/planning/implementation-plan.md
+    output: .pas/workspace/pas-development/{slug}/execution/changes/
     gate: product owner reviews changes
 
   validation:
     agent: qa-engineer
-    input: workspace/pas-development/{slug}/execution/changes/
-    output: workspace/pas-development/{slug}/validation/report.md
+    input: .pas/workspace/pas-development/{slug}/execution/changes/
+    output: .pas/workspace/pas-development/{slug}/validation/report.md
     gate: product owner approves release
 
   release:
     agent: community-manager
-    input: workspace/pas-development/{slug}/validation/report.md
+    input: .pas/workspace/pas-development/{slug}/validation/report.md
     output: PR URL
     gate: product owner confirms merge
 
-status_file: workspace/pas-development/{slug}/status.yaml
+status_file: .pas/workspace/pas-development/{slug}/status.yaml
 ---
 
 # PAS Development Process
