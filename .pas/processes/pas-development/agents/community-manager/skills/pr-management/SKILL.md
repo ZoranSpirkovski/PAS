@@ -18,13 +18,23 @@ After Validation passes and the product owner approves release.
 
 ## Process
 
+### Step 0: Bump version
+
+Before committing, bump the patch version:
+
+```bash
+bash plugins/pas/hooks/lib/bump-version.sh
+```
+
+This updates `plugins/pas/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` in place. Include both files in the plugin commit below.
+
 ### Step 1: Separate commits on dev
 
 Create two commits on `dev`:
 
-1. **Plugin commit** — only files under `plugins/pas/`:
+1. **Plugin commit** — files under `plugins/pas/` plus the marketplace catalog:
    ```bash
-   git add plugins/pas/...
+   git add plugins/pas/... .claude-plugin/marketplace.json
    git commit -m "{descriptive message}"
    ```
 
@@ -58,7 +68,7 @@ git cherry-pick --continue --no-edit
 git diff main --stat
 ```
 
-Every file in the diff MUST be under `plugins/pas/`. If any non-plugin file appears, abort and fix.
+Every file in the diff MUST be under `plugins/pas/` or `.claude-plugin/`. If any other file appears, abort and fix.
 
 ### Step 4: Create PR
 
@@ -117,7 +127,7 @@ This step is required. Skipping it causes dev and main to diverge, and the next 
 
 ## Quality Checks
 
-- PR diff contains ONLY `plugins/pas/` files
+- PR diff contains ONLY `plugins/pas/` and `.claude-plugin/` files
 - All related issues are linked with "closes #N"
 - PR title is under 70 characters
 - No AI attribution in commits, PR description, or comments

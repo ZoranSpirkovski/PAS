@@ -32,9 +32,9 @@ All PAS plugin development happens on `dev`. Issues get applied here, tested, va
 
 ## PR Scope
 
-PRs are for direct PAS plugin changes only — files under `plugins/pas/`. Everything else (`.pas/` artifacts, `docs/plans/`, changelogs) gets committed directly to `dev`. This keeps PRs focused on reviewable plugin upgrades.
+PRs are for direct PAS plugin changes only — files under `plugins/pas/` plus `.claude-plugin/marketplace.json` (distribution artifact updated by the version auto-bump). Everything else (`.pas/` artifacts, `docs/plans/`, changelogs) gets committed directly to `dev`. This keeps PRs focused on reviewable plugin upgrades.
 
-**In a feature branch PR:** only `plugins/pas/` changes.
+**In a feature branch PR:** `plugins/pas/` changes and `.claude-plugin/marketplace.json`.
 **On dev directly:** `.pas/` artifacts (library, workspace, processes, feedback), changelogs, plans.
 
 ## Protected Files (dev branch)
