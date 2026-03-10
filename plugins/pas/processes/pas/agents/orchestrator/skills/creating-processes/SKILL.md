@@ -19,8 +19,8 @@ This skill IS the execution framework. When generating plans for process creatio
 
 When creating a process, the workspace reflects the **running process** (PAS), not the artifact being created:
 
-- Correct: `workspace/pas/create-songwriting-process/`
-- Incorrect: `workspace/songwriting/create-process/`
+- Correct: `.pas/workspace/pas/create-songwriting-process/`
+- Incorrect: `.pas/workspace/songwriting/create-process/`
 
 The workspace slug should describe the task: `create-{name}-process`. The `process` field in status.yaml is always `pas` (since the PAS orchestrator is running).
 
@@ -43,7 +43,7 @@ Never assume you understand what the user wants. Ask clarifying questions until 
 
 If the process requires domain knowledge from raw source material (transcripts, documentation, course content):
 
-1. Create `processes/{name}/reference/` directory
+1. Create `.pas/processes/{name}/reference/` directory
 2. Store the original source material in `reference/source/` — this is the authoritative knowledge base
 3. Analyze the source material to determine the best reference format:
    - If already well-structured: use directly, no distillation needed
@@ -76,7 +76,7 @@ For simple processes (1-3 phases, similar skills), the orchestrator handles ever
 
 ### 5. Select Orchestration Pattern
 
-Read the orchestration decision matrix. If `library/orchestration/SKILL.md` doesn't exist in the user's project yet, bootstrap it by copying from the PAS plugin's library (the `library/` directory next to `processes/` in the plugin). Then apply the decision matrix:
+Read the orchestration decision matrix. If `.pas/library/orchestration/SKILL.md` doesn't exist in the user's project yet, bootstrap it by copying from the PAS plugin's library (the `library/` directory next to `processes/` in the plugin). Then apply the decision matrix:
 
 | Agents | Discussion needed? | Parallel phases? | Pattern |
 |--------|-------------------|-------------------|---------|
@@ -105,7 +105,7 @@ bash ${CLAUDE_SKILL_DIR}/scripts/pas-create-process \
 
 Repeatable flags: `--phase` (required, at least one), `--input` (required, at least one).
 
-Optional: `--base-dir` sets the root directory for output (default: current directory). Use for test isolation to avoid generating into the project's real `processes/` directory.
+Optional: `--base-dir` sets the root directory for output (default: current directory). Use for test isolation to avoid generating into the project's real `.pas/processes/` directory.
 
 This creates the process directory (process.md, mode files, references/, feedback/), thin launcher, and changelog.
 
@@ -121,7 +121,7 @@ For each agent determined in step 4, use `creating-agents/SKILL.md`:
 
 Evaluate whether the process needs lifecycle hooks:
 
-- **Feedback hooks**: If `pas-config.yaml` has `feedback: enabled`, the PAS plugin's hooks handle self-eval and routing automatically. No per-process hooks needed for feedback.
+- **Feedback hooks**: If `.pas/config.yaml` has `feedback: enabled`, the PAS plugin's hooks handle self-eval and routing automatically. No per-process hooks needed for feedback.
 - **Domain-specific guards**: Does any phase need pre-conditions checked before tool use? (e.g., block destructive commands, validate inputs)
 - **Lifecycle automation**: Should anything happen automatically at session start, agent stop, or task completion?
 

@@ -14,7 +14,7 @@ The default pattern for multi-agent processes. A central orchestrator reads the 
 3. **Create workspace** -- follow `lifecycle.md` > Workspace Creation
 4. **Create lifecycle tasks** -- follow `lifecycle.md` > Lifecycle Task Creation
 5. **Load orchestration skills**: read this file for execution rules
-6. **When feedback is enabled**: carry `library/self-evaluation/SKILL.md` for shutdown
+6. **When feedback is enabled**: carry `.pas/library/self-evaluation/SKILL.md` for shutdown
 7. **Spawn team members** via TeamCreate for all specialist agents defined in process.md. Follow `lifecycle.md` > Ready Handshake -- wait for all agents to confirm READY before dispatching work.
 
 ## Spawning Team Members
@@ -22,11 +22,11 @@ The default pattern for multi-agent processes. A central orchestrator reads the 
 Use TeamCreate for each specialist agent. The spawn prompt tells them:
 
 - Their role: "You are the {name}"
-- Where to find their definition: "Read your agent.md at `processes/{process}/agents/{name}/agent.md`"
+- Where to find their definition: "Read your agent.md at `.pas/processes/{process}/agents/{name}/agent.md`"
 - Where to find their skills: "Read your skills from the `skills/` directory listed in your agent.md"
-- Where to write output: "Write output to `workspace/{process}/{slug}/{output-folder}/`"
+- Where to write output: "Write output to `.pas/workspace/{process}/{slug}/{output-folder}/`"
 - Feedback status: whether self-evaluation is active
-- Self-evaluation instructions: "Before returning your final result, if feedback is enabled in `pas-config.yaml`, read `library/self-evaluation/SKILL.md` and write feedback to `workspace/{process}/{slug}/feedback/{your-name}.md`"
+- Self-evaluation instructions: "Before returning your final result, if feedback is enabled in `.pas/config.yaml`, read `.pas/library/self-evaluation/SKILL.md` and write feedback to `.pas/workspace/{process}/{slug}/feedback/{your-name}.md`"
 - Ready handshake: "After reading your agent.md and skills, send a message to the orchestrator containing only: `READY: {agent-name}`"
 
 Team members persist for the full process lifecycle. They retain work context for richer self-evaluation and can receive downstream feedback from later phases. Idle agents cost zero tokens.
@@ -83,9 +83,9 @@ Every subagent spawn prompt MUST include:
 
 1. **Verified file paths**: Before dispatching, confirm all referenced paths exist. Do not propagate paths without verification -- a wrong path in the spawn prompt will be replicated across all subagent work.
 2. **Specific scope**: One clear objective per agent. "Fix link-building skill" not "fix all skills."
-3. **Output location**: Exact path for writing results to `workspace/{process}/{slug}/`
+3. **Output location**: Exact path for writing results to `.pas/workspace/{process}/{slug}/`
 4. **Shutdown protocol**: "When your task is complete: 1) Write your self-evaluation, 2) Return your summary. Do not shut down before completing self-evaluation."
-5. **Self-evaluation instructions** (when feedback enabled): "Before returning your final result, read `library/self-evaluation/SKILL.md` and write feedback to `workspace/{process}/{slug}/feedback/{your-name}.md`"
+5. **Self-evaluation instructions** (when feedback enabled): "Before returning your final result, read `.pas/library/self-evaluation/SKILL.md` and write feedback to `.pas/workspace/{process}/{slug}/feedback/{your-name}.md`"
 
 ### Feedback Rules
 
@@ -128,7 +128,7 @@ Gates are checkpoints where the process pauses for review. Behavior depends on t
 1. Phase completes, orchestrator presents output summary (not raw files unless asked)
 2. Flag any quality concerns or red flags
 3. Ask: "Approve and continue, or request changes?"
-4. Classify the user's response using `library/message-routing/SKILL.md`:
+4. Classify the user's response using `.pas/library/message-routing/SKILL.md`:
    - Approval: proceed to next phase
    - Feedback: fix in session + queue signal for permanent improvement
    - Question: answer, then re-present gate

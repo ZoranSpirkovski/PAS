@@ -43,7 +43,7 @@ case "$TASK_SUBJECT" in
 Cannot complete "Self-evaluation" task: ${FEEDBACK_DIR}/${EXPECTED} does not exist.
 
 Write your self-evaluation to this file before marking the task complete.
-Use library/self-evaluation/SKILL.md for the format.
+Use .pas/library/self-evaluation/SKILL.md for the format.
 EOF
       exit 2
     fi

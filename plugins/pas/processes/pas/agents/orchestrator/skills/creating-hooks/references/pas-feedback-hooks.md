@@ -4,9 +4,9 @@
 
 Set up PAS feedback hooks when ALL of these are true:
 
-1. The project has `pas-config.yaml` with `feedback: enabled`
+1. The project has `.pas/config.yaml` with `feedback: enabled`
 2. The process uses agents (not solo orchestrator-only)
-3. Agents carry `library/self-evaluation/SKILL.md`
+3. Agents carry `.pas/library/self-evaluation/SKILL.md`
 
 ## The Two Standard Hooks
 
@@ -35,7 +35,7 @@ AGENT_ID=$(echo "$INPUT" | jq -r '.agent_id // "unknown"')
 AGENT_TRANSCRIPT=$(echo "$INPUT" | jq -r '.agent_transcript_path // empty')
 
 # Guard: only run in PAS repos with feedback enabled
-PAS_CONFIG="$CWD/pas-config.yaml"
+PAS_CONFIG="$CWD/.pas/config.yaml"
 if [ ! -f "$PAS_CONFIG" ]; then
   exit 0
 fi
@@ -46,7 +46,7 @@ if [ "$FEEDBACK_STATUS" != "enabled" ]; then
 fi
 
 # Find active workspace (sort-by-mtime approach)
-WORKSPACE_DIR="$CWD/workspace"
+WORKSPACE_DIR="$CWD/.pas/workspace"
 if [ ! -d "$WORKSPACE_DIR" ]; then
   exit 0
 fi
@@ -96,7 +96,7 @@ Agent '${AGENT_ID}' is shutting down without writing self-evaluation.
 Before stopping, write your self-evaluation to:
   ${FEEDBACK_DIR}/${AGENT_ID}.md
 
-Use library/self-evaluation/SKILL.md for the format.
+Use .pas/library/self-evaluation/SKILL.md for the format.
 If nothing went wrong, write "No issues detected."
 EOF
 exit 2
@@ -114,10 +114,10 @@ exit 2
 
 The canonical version lives at `plugins/pas/hooks/route-feedback.sh`. Key features:
 
-- `resolve_target_path()` searches `$CWD/processes/`, then `$CWD/plugins/` as fallback for process/agent/skill targets
+- `resolve_target_path()` searches `$CWD/.pas/processes/`, then `$CWD/plugins/` as fallback for process/agent/skill targets
 - `framework)` case returns sentinel `__framework__` which triggers `route_framework_signal()`
 - `route_framework_signal()` files GitHub issues via `gh issue create` for signals marked `Route: github-issue`
-- Guards: checks `gh auth status` before attempting; logs to `$CWD/feedback/framework-routing.log`
+- Guards: checks `gh auth status` before attempting; logs to `$CWD/.pas/feedback/framework-routing.log`
 - Processed feedback files are marked with `.routed` companion file instead of deleted
 
 Refer to the deployed script at `${CLAUDE_PLUGIN_ROOT}/hooks/route-feedback.sh` for the full implementation.

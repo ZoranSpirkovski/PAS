@@ -27,7 +27,7 @@ Classify user messages at gates to determine the correct response. Used by orche
 
 **Behavior:**
 1. **Fix in session**: route the feedback to the appropriate agent to revise the output. Re-present the gate after revision.
-2. **Queue for permanent improvement**: if feedback is enabled, write a structured signal to the workspace feedback inbox (`workspace/{process}/{slug}/feedback/`). Use the self-evaluation signal format:
+2. **Queue for permanent improvement**: if feedback is enabled, write a structured signal to the workspace feedback inbox (`.pas/workspace/{process}/{slug}/feedback/`). Use the self-evaluation signal format:
    - PPU if the feedback expresses a persistent preference
    - OQI if the feedback identifies an output quality issue
    - Include `Target:` pointing to the skill or agent that produced the output

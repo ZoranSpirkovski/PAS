@@ -11,7 +11,7 @@ Write structured improvement signals at shutdown. This skill activates only at s
 
 - You are shutting down after completing your work
 - You have already received any downstream feedback from later phases
-- Feedback is enabled in `pas-config.yaml`
+- Feedback is enabled in `.pas/config.yaml`
 
 Do NOT activate during work. Do NOT evaluate while producing output. Wait until shutdown.
 
@@ -19,7 +19,7 @@ Do NOT activate during work. Do NOT evaluate while producing output. Wait until 
 
 1. Reflect on the session: what went well, what went wrong, what the user corrected
 2. For each observation, determine the signal type (see below)
-3. Write signals to `workspace/{process}/{slug}/feedback/{your-agent-name}-{session_id}.md`
+3. Write signals to `.pas/workspace/{process}/{slug}/feedback/{your-agent-name}-{session_id}.md`
 
    The session ID is provided by the SessionStart hook and recorded in `status.yaml` under `current_session`. If no session ID is available, use your agent name without a suffix.
 4. If nothing went wrong: write "No issues detected." and stop. Do NOT list positives.
@@ -104,7 +104,7 @@ When a signal targets the PAS framework itself (not a specific process, agent, o
 - A library skill needs improvement
 
 **Routing chain:**
-1. Agent writes the signal locally to `workspace/{process}/{slug}/feedback/{agent-name}.md` with `Target: framework:pas`
+1. Agent writes the signal locally to `.pas/workspace/{process}/{slug}/feedback/{agent-name}.md` with `Target: framework:pas`
 2. Agent appends `Route: github-issue` to the signal block
 3. At shutdown, the orchestrator reads all feedback files, finds signals marked `Route: github-issue`, and files them as GitHub issues on the PAS repository
 

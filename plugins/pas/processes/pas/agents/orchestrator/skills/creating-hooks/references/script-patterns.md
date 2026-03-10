@@ -136,7 +136,7 @@ Without this, a Stop hook that returns `decision: "block"` will fire again when 
 For hooks that should only fire in PAS-enabled repos:
 
 ```bash
-PAS_CONFIG="$CWD/pas-config.yaml"
+PAS_CONFIG="$CWD/.pas/config.yaml"
 if [ ! -f "$PAS_CONFIG" ]; then
   exit 0  # Not a PAS repo, skip
 fi
@@ -184,7 +184,7 @@ fi
 
 ```bash
 find_active_workspace() {
-  local workspace_dir="$CWD/workspace"
+  local workspace_dir="$CWD/.pas/workspace"
   if [ ! -d "$workspace_dir" ]; then
     return 1
   fi
@@ -209,8 +209,8 @@ Note: includes both Linux (`stat -c %Y`) and macOS (`stat -f %m`) fallback.
 **Always `mkdir -p` before writing logs:**
 
 ```bash
-mkdir -p "$CWD/feedback"
-echo "[$(date -Iseconds)] WARNING: ..." >> "$CWD/feedback/warnings.log"
+mkdir -p "$CWD/.pas/feedback"
+echo "[$(date -Iseconds)] WARNING: ..." >> "$CWD/.pas/feedback/warnings.log"
 ```
 
 ## Path References
