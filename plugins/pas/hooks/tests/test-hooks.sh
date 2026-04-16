@@ -750,6 +750,79 @@ fi
 rm -rf "$MIGDIR"
 
 # =========================================================================
+# Section: C06 — verify-completion-gate absolute-path diagnostics
+# =========================================================================
+
+printf "\n${BOLD}C06. verify-completion-gate absolute-path diagnostics${RESET}\n"
+
+C06DIR=$(mktemp -d)
+mkdir -p "$C06DIR/.pas/workspace/proc/inst-c06/feedback"
+printf 'feedback: enabled\n' > "$C06DIR/.pas/config.yaml"
+cat > "$C06DIR/.pas/workspace/proc/inst-c06/status.yaml" <<'EOF'
+process: proc
+instance: inst-c06
+status: in_progress
+current_session: c06test1
+
+phases:
+  discovery:
+    status: completed
+EOF
+
+# T-C06-1: missing orchestrator feedback → stderr contains an absolute path
+# (starts with /), not just the bare filename.
+run_hook "verify-completion-gate.sh" \
+  "{\"cwd\":\"$C06DIR\",\"stop_hook_active\":false,\"session_id\":\"c06test1\"}" \
+  2 "C06-1: missing orchestrator → exit 2"
+
+if grep -qE "Orchestrator self-evaluation missing: /" /tmp/test-hook-stderr 2>/dev/null; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C06-1: stderr names absolute path (starts with /)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C06-1: stderr missing absolute orchestrator path")
+  printf "  ${RED}FAIL${RESET} C06-1: stderr missing absolute path\n"
+fi
+
+# T-C06-2: stderr includes the resolver diagnostic line
+assert_stderr_contains "Resolved PAS_PROJECT_ROOT:" \
+  "C06-2: stderr exposes PAS_PROJECT_ROOT for diagnosability"
+
+assert_stderr_contains "Checked feedback dir:" \
+  "C06-2: stderr names the feedback dir actually checked"
+
+# T-C06-3: worktree fixture — agent writes feedback in main checkout's .pas/,
+# hook called from worktree cwd → exits 0 because PAS_PROJECT_ROOT resolves
+# back to the main worktree (closes #70-F4 deadlock + makes the diagnostic
+# the only thing the user sees on a true mismatch, not a phantom failure).
+WTBASE=$(mktemp -d)
+( cd "$WTBASE" && git init -q && git -c user.email=t@t -c user.name=t commit --allow-empty -m init -q ) >/dev/null 2>&1
+mkdir -p "$WTBASE/.pas/workspace/proc/inst-wt/feedback"
+printf 'feedback: enabled\n' > "$WTBASE/.pas/config.yaml"
+cat > "$WTBASE/.pas/workspace/proc/inst-wt/status.yaml" <<'EOF'
+process: proc
+instance: inst-wt
+status: in_progress
+current_session: wt12abcd
+
+phases:
+  discovery:
+    status: completed
+EOF
+echo "ok" > "$WTBASE/.pas/workspace/proc/inst-wt/feedback/orchestrator-wt12abcd.md"
+( cd "$WTBASE" && git worktree add -q "$WTBASE/.wt-c06" -b c06-test-branch ) >/dev/null 2>&1
+
+if [ -d "$WTBASE/.wt-c06" ]; then
+  run_hook "verify-completion-gate.sh" \
+    "{\"cwd\":\"$WTBASE/.wt-c06\",\"stop_hook_active\":false,\"session_id\":\"wt12abcd\"}" \
+    0 "C06-3: worktree cwd resolves to main .pas/, finds feedback → exit 0"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C06-3: worktree fixture unavailable (skipped)\n"
+fi
+rm -rf "$WTBASE" "$C06DIR"
+
+# =========================================================================
 # Section: C08 — verify-task-completion phase output_files checkpoint
 # =========================================================================
 

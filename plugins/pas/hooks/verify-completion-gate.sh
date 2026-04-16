@@ -80,20 +80,30 @@ if [ "$ORCHESTRATOR_OK" = true ] && [ -z "$MISSING_AGENTS" ]; then
   exit 0
 fi
 
-# BLOCK: build failure message
+# BLOCK: build failure message.
+# Print absolute paths so a worktree-cwd session sees the same path the hook
+# actually checked. We reuse $FEEDBACK_DIR as resolved by guard_active_workspace
+# (post-C01 this is anchored to PAS_PROJECT_ROOT, so it's already absolute);
+# pwd-resolve once for safety against any caller that passes a relative path.
+ABS_FEEDBACK_DIR=$(cd "$FEEDBACK_DIR" 2>/dev/null && pwd || echo "$FEEDBACK_DIR")
+ABS_EXPECTED="${ABS_FEEDBACK_DIR}/${EXPECTED_FILE}"
+
 {
   echo "COMPLETION GATE FAILED"
   echo ""
+  echo "Resolved PAS_PROJECT_ROOT: ${PAS_PROJECT_ROOT:-<unset>}"
+  echo "Checked feedback dir:      ${ABS_FEEDBACK_DIR}"
+  echo ""
   if [ "$ORCHESTRATOR_OK" != true ]; then
-    echo "Orchestrator self-evaluation missing: ${FEEDBACK_DIR}/${EXPECTED_FILE}"
+    echo "Orchestrator self-evaluation missing: ${ABS_EXPECTED}"
   fi
   if [ -n "$MISSING_AGENTS" ]; then
     echo "Agent self-evaluation missing for: ${MISSING_AGENTS}"
-    echo "Each agent must write feedback to ${FEEDBACK_DIR}/{agent-name}.md before shutdown."
+    echo "Each agent must write feedback to ${ABS_FEEDBACK_DIR}/{agent-name}.md before shutdown."
   fi
   echo ""
   echo "Before stopping, you MUST:"
-  echo "1. Write self-evaluation to ${FEEDBACK_DIR}/${EXPECTED_FILE}"
+  echo "1. Write self-evaluation to ${ABS_EXPECTED}"
   echo "   - Use .pas/library/self-evaluation/SKILL.md for the format"
   echo "   - If nothing went wrong, write \"No issues detected.\""
   if [ -n "$MISSING_AGENTS" ]; then
@@ -106,5 +116,9 @@ fi
   fi
   echo ""
   echo "You cannot stop until these steps are done."
+  echo ""
+  echo "If your cwd differs from PAS_PROJECT_ROOT (e.g. running inside a git"
+  echo "worktree), write the file at the absolute path above — the hook"
+  echo "always checks that exact path."
 } >&2
 exit 2
