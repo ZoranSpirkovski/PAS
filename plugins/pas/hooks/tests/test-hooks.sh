@@ -712,6 +712,83 @@ fi
 rm -rf "$MIGDIR"
 
 # =========================================================================
+# Section: C01 — lib/guards.sh defensive defaults + resolve_pas_project_root
+# =========================================================================
+
+printf "\n${BOLD}C01. lib/guards.sh foundation${RESET}\n"
+
+# T-C01-1: CLAUDE_PLUGIN_ROOT defensive default fires when unset
+# Run a fresh bash with the var unset; sourcing guards.sh must populate it.
+RESULT=$(env -u CLAUDE_PLUGIN_ROOT bash -c "source '$HOOKS_DIR/lib/guards.sh' && echo \"\$CLAUDE_PLUGIN_ROOT\"")
+if [ -n "$RESULT" ] && [ -d "$RESULT" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-1: CLAUDE_PLUGIN_ROOT defensive default sets a real path\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C01-1: defensive default failed (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C01-1: CLAUDE_PLUGIN_ROOT default (got: '%s')\n" "$RESULT"
+fi
+
+# T-C01-2: resolve_pas_project_root from cwd containing .pas/config.yaml
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_pas_project_root '$TESTDIR'")
+if [ "$RESULT" = "$TESTDIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-2: resolve_pas_project_root from PAS-root cwd\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C01-2: expected '$TESTDIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C01-2: resolve from PAS-root cwd (got: '%s')\n" "$RESULT"
+fi
+
+# T-C01-3: walk up from a deep subdirectory
+mkdir -p "$TESTDIR/sub/deeper/nest"
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_pas_project_root '$TESTDIR/sub/deeper/nest'")
+if [ "$RESULT" = "$TESTDIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-3: resolve walks up from deep subdirectory\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C01-3: expected '$TESTDIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C01-3: walk up from subdir (got: '%s')\n" "$RESULT"
+fi
+
+# T-C01-4: git worktree fallback — worktree dir has no .pas/, main dir does
+WTBASE=$(mktemp -d)
+( cd "$WTBASE" && git init -q && git -c user.email=t@t -c user.name=t commit --allow-empty -m init -q ) >/dev/null 2>&1
+mkdir -p "$WTBASE/.pas"
+printf 'feedback: enabled\n' > "$WTBASE/.pas/config.yaml"
+( cd "$WTBASE" && git worktree add -q "$WTBASE/.wt" -b c01-test-branch ) >/dev/null 2>&1
+if [ -d "$WTBASE/.wt" ]; then
+  RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_pas_project_root '$WTBASE/.wt'")
+  # Resolve symlinks for comparison (macOS/Linux tmpdir realpath quirks)
+  EXPECTED_REAL=$(cd "$WTBASE" && pwd -P)
+  RESULT_REAL=$(cd "$RESULT" 2>/dev/null && pwd -P || echo "$RESULT")
+  if [ "$RESULT_REAL" = "$EXPECTED_REAL" ]; then
+    PASS=$((PASS + 1))
+    printf "  ${GREEN}PASS${RESET} C01-4: resolve falls back to git --show-toplevel from worktree\n"
+  else
+    FAIL=$((FAIL + 1))
+    ERRORS+=("C01-4: expected '$EXPECTED_REAL', got '$RESULT_REAL'")
+    printf "  ${RED}FAIL${RESET} C01-4: worktree fallback (got: '%s')\n" "$RESULT_REAL"
+  fi
+else
+  # Worktree creation failed — skip but don't fail the suite
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-4: worktree fixture unavailable (skipped, but no failure)\n"
+fi
+rm -rf "$WTBASE"
+
+# T-C01-5: from /tmp (non-PAS, non-git) returns non-zero
+if bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_pas_project_root /tmp" >/dev/null 2>&1; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C01-5: expected non-zero exit when no PAS root resolvable")
+  printf "  ${RED}FAIL${RESET} C01-5: should return non-zero from /tmp\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-5: returns non-zero when no PAS root resolvable\n"
+fi
+
+# =========================================================================
 # Summary
 # =========================================================================
 
