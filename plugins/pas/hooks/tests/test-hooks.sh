@@ -750,6 +750,103 @@ fi
 rm -rf "$MIGDIR"
 
 # =========================================================================
+# Section: C05 — agent_type scoping + #71 substantive-message bypass
+# =========================================================================
+
+printf "\n${BOLD}C05. agent_type scoping for non-PAS subagents${RESET}\n"
+
+# Setup a workspace whose status.yaml declares specific PAS agents
+C05DIR=$(mktemp -d)
+mkdir -p "$C05DIR/.pas/workspace/proc/inst-c05/feedback"
+printf 'feedback: enabled\n' > "$C05DIR/.pas/config.yaml"
+cat > "$C05DIR/.pas/workspace/proc/inst-c05/status.yaml" <<'EOF'
+process: proc
+instance: inst-c05
+status: in_progress
+current_session: c05test1
+
+phases:
+  discovery:
+    status: in_progress
+    agent: [framework-architect, dx-specialist]
+  planning:
+    status: pending
+    agent: framework-architect
+EOF
+
+# T-C05-1: agent_type "Explore" (not in status.yaml allowlist), no feedback
+# file → SubagentStop exits 0 silently (non-PAS passthrough). This is the
+# core bug from #67/#68/#38.
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"some-explore-id\",\"agent_type\":\"Explore\"}" \
+  0 "C05-1: agent_type Explore → exit 0 (non-PAS passthrough)"
+
+# T-C05-2: agent_type framework-architect (in allowlist), no feedback file
+# → SubagentStop exits 2 (PAS scoping retained — gate still works).
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\"}" \
+  2 "C05-2: PAS-defined agent without feedback → exit 2 (gate enforced)"
+
+assert_stderr_contains "shutting down without writing self-evaluation" \
+  "C05-2: stderr shows the standard block message"
+
+# T-C05-3: PAS agent with feedback file present → exit 0
+echo "No issues detected." > "$C05DIR/.pas/workspace/proc/inst-c05/feedback/framework-architect.md"
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\"}" \
+  0 "C05-3: PAS agent with feedback file → exit 0"
+
+# T-C05-4: empty agent_type → SAFE-FAIL to "treat as PAS agent" (over-block).
+# A previously-passing fixture (no feedback file for unknown agent) must
+# still block — confirms we did NOT silently weaken the gate.
+rm -f "$C05DIR/.pas/workspace/proc/inst-c05/feedback/framework-architect.md"
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"unknown-agent\",\"agent_type\":\"\"}" \
+  2 "C05-4: empty agent_type → safe-fail over-block (gate not weakened)"
+
+# T-C05-5: SessionStart with non-empty agent_id → no PAS lifecycle text
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C05DIR\",\"source\":\"startup\",\"session_id\":\"c05sub1\",\"agent_id\":\"some-subagent-id\"}" \
+  0 "C05-5: SessionStart with agent_id → exit 0"
+
+if grep -q "PAS Framework Active" /tmp/test-hook-stdout 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C05-5: SessionStart should NOT inject 'PAS Framework Active' for subagents")
+  printf "  ${RED}FAIL${RESET} C05-5: PAS lifecycle text leaked into subagent context\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C05-5: no PAS lifecycle text in subagent SessionStart\n"
+fi
+
+# T-C05-6: SessionStart with empty agent_id (orchestrator) → full text injected
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C05DIR\",\"source\":\"startup\",\"session_id\":\"c05orch1\"}" \
+  0 "C05-6: SessionStart without agent_id → exit 0"
+
+assert_stdout_contains "PAS Framework Active" \
+  "C05-6: orchestrator SessionStart still injects lifecycle text"
+
+# T-C05-7: substantive last_assistant_message (>200 chars, no summary
+# keywords) → exits 0 with audit-line on stderr (#71 substantive bypass).
+LONG_MSG="This is a long substantive review message that contains the actual findings the parent agent needs to receive. It deliberately avoids any of the boilerplate summary phrases that the bypass heuristic looks for, so the gate must let this through. The message is well over two hundred characters so the length check passes too."
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\",\"last_assistant_message\":\"$LONG_MSG\"}" \
+  0 "C05-7: substantive response → exit 0 (#71 bypass)"
+
+assert_stderr_contains "substantive response detected" \
+  "C05-7: stderr emits audit line so bypass is visible"
+
+# T-C05-8: short summary boilerplate → still blocks (the bug we're fixing).
+# "Self-evaluation written. No issues detected during this review." is
+# exactly the elision text from the #71 bug report.
+SHORT_MSG="Self-evaluation written. No issues detected during this review."
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\",\"last_assistant_message\":\"$SHORT_MSG\"}" \
+  2 "C05-8: summary-boilerplate response → exit 2 (block — that's the bug)"
+
+rm -rf "$C05DIR"
+
+# =========================================================================
 # Section: C06 — verify-completion-gate absolute-path diagnostics
 # =========================================================================
 

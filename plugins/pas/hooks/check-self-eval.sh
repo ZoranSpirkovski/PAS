@@ -11,9 +11,22 @@ source "$SCRIPT_DIR/lib/guards.sh"
 guard_parse_input || exit 0
 
 AGENT_ID=$(echo "$INPUT" | jq -r '.agent_id // "unknown"')
+AGENT_TYPE=$(echo "$INPUT" | jq -r '.agent_type // empty')
 AGENT_TRANSCRIPT=$(echo "$INPUT" | jq -r '.agent_transcript_path // empty')
+LAST_MSG=$(echo "$INPUT" | jq -r '.last_assistant_message // empty')
 
 guard_feedback_enabled || exit 0
+
+# Scope this hook to PAS-process agents only. Generic Explore / Plan /
+# general-purpose subagents get spawned all the time during PAS sessions
+# and must not be blocked or have their work treated as PAS feedback
+# (#38, #67, #68). guard_agent_in_active_process is safe-fail (returns 0)
+# when agent_type is empty/unknown or the workspace allowlist is
+# unresolvable, preserving over-blocking on older CC versions.
+if ! guard_agent_in_active_process "$AGENT_TYPE" "$SCRIPT_DIR"; then
+  exit 0  # Not a PAS-process agent — silently skip
+fi
+
 guard_active_workspace "$SCRIPT_DIR" || exit 0
 
 if [ ! -d "$FEEDBACK_DIR" ]; then
@@ -40,6 +53,22 @@ if [ -n "$AGENT_TRANSCRIPT" ] && [ -f "$AGENT_TRANSCRIPT" ]; then
   SIGNAL_COUNT=$(grep -cE '\[(PPU|OQI|GATE|STA)-[0-9]+\]' "$AGENT_TRANSCRIPT" 2>/dev/null) || SIGNAL_COUNT=0
   if [ "$SIGNAL_COUNT" -gt 0 ]; then
     exit 0  # Found inline signals — agent did self-eval in conversation
+  fi
+fi
+
+# Tertiary check (#71): substantive plain-text response detected.
+# The bug we're fixing: parents were receiving a hook-injected "Self-
+# evaluation written" summary INSTEAD of the agent's actual review/
+# exploration text. If the agent's last_assistant_message is long AND not
+# a known summary boilerplate, treat it as substantive — bypass the gate
+# and emit an audit line so the bypass is visible.
+LAST_MSG_LEN=$(echo -n "$LAST_MSG" | wc -c | tr -d ' ')
+if [ -n "$LAST_MSG" ] && [ "$LAST_MSG_LEN" -gt 200 ]; then
+  # Known summary boilerplates that should NOT count as substantive.
+  # Match the exact strings observed in #71 / #68 / #38 reports.
+  if ! echo "$LAST_MSG" | head -c 400 | grep -qiE 'self-evaluation written|self-evaluation has been written|no issues detected|written to the requested location|feedback file written|written\. (no issues|task tracking)'; then
+    echo "PAS feedback hook INFO: substantive response detected (${LAST_MSG_LEN} chars), gate bypassed for agent '${AGENT_ID}'" >&2
+    exit 0
   fi
 fi
 

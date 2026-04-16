@@ -134,6 +134,61 @@ guard_feedback_enabled() {
   fi
 }
 
+# Check that the given agent type is one declared in the active process's
+# status.yaml (i.e. a PAS-spawned agent, not a generic Explore/Plan/etc).
+# Args:
+#   $1 — agent_type from the SubagentStop payload (jq '.agent_type // empty')
+#   $2 — script_dir (passed through to guard_active_workspace)
+# Returns 0 when the agent is in the active PAS process's allowlist,
+# non-zero otherwise (caller should `exit 0` to silently skip).
+#
+# SAFE-FAIL: empty/unset agent_type → return 0 (treat as PAS agent). This
+# preserves existing over-blocking behavior on CC versions that don't
+# populate the field, instead of silently weakening the gate.
+guard_agent_in_active_process() {
+  local agent_type="$1"
+  local script_dir="$2"
+
+  # Empty/unknown → safe-fail to "treat as PAS agent" (over-block direction)
+  if [ -z "$agent_type" ] || [ "$agent_type" = "unknown" ] || [ "$agent_type" = "null" ]; then
+    return 0
+  fi
+
+  # If we can't resolve a workspace, can't check the allowlist — safe-fail
+  # to over-block; caller's guard_active_workspace will exit 0 naturally
+  # if there's truly no workspace.
+  if ! guard_active_workspace "$script_dir" 2>/dev/null; then
+    return 0
+  fi
+
+  local pas_agents
+  # status.yaml shape: `agent: name` (scalar) OR `agent: [a, b, c]` (list).
+  # Strip brackets/commas; emit every name on its own line.
+  pas_agents=$(grep '^[[:space:]]*agent:' "$ACTIVE_STATUS" 2>/dev/null \
+    | sed 's/^[[:space:]]*agent:[[:space:]]*//' \
+    | tr -d '[]' \
+    | tr ',' '\n' \
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+    | grep -v '^$' \
+    | sort -u)
+
+  # Empty allowlist → safe-fail (something's wrong with status.yaml)
+  if [ -z "$pas_agents" ]; then
+    return 0
+  fi
+
+  # Orchestrator is always a PAS agent even if not declared in any phase
+  if [ "$agent_type" = "orchestrator" ]; then
+    return 0
+  fi
+
+  if echo "$pas_agents" | grep -qx "$agent_type"; then
+    return 0
+  fi
+
+  return 1
+}
+
 # Find active workspace using the shared workspace resolution function.
 # Sets ACTIVE_STATUS, ACTIVE_WORKSPACE, FEEDBACK_DIR.
 # Uses PAS_PROJECT_ROOT (set by guard_pas_project) so worktree-cwd sessions
