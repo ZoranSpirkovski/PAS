@@ -1,2 +1,7 @@
 feedback: enabled
 feedback_disabled_at: ~
+
+# Where framework:pas signals get filed when routed via Route: github-issue.
+# This MUST point at the PAS plugin's own repo — never the host project's
+# repo. Enforced by route-feedback.sh; if absent, the hook refuses to file.
+framework_signal_repo: ZoranSpirkovski/PAS
