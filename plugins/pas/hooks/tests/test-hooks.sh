@@ -750,6 +750,84 @@ fi
 rm -rf "$MIGDIR"
 
 # =========================================================================
+# Section: C08 — verify-task-completion phase output_files checkpoint
+# =========================================================================
+
+printf "\n${BOLD}C08. verify-task-completion output_files checkpoint${RESET}\n"
+
+C08DIR=$(mktemp -d)
+mkdir -p "$C08DIR/.pas/workspace/proc/inst-c08/feedback"
+mkdir -p "$C08DIR/.pas/workspace/proc/inst-c08/discovery"
+printf 'feedback: enabled\n' > "$C08DIR/.pas/config.yaml"
+
+# status.yaml uses the live key-based phase schema (matches cycle-14/status.yaml)
+cat > "$C08DIR/.pas/workspace/proc/inst-c08/status.yaml" <<'EOF'
+process: proc
+instance: inst-c08
+status: in_progress
+current_session: c08test1
+
+phases:
+  discovery:
+    status: in_progress
+    agent: framework-architect
+    output_files:
+      - discovery/priorities.md
+      - discovery/perspective.md
+  planning:
+    status: pending
+    agent: framework-architect
+    output_files:
+      - planning/implementation-plan.md
+  execution:
+    status: pending
+    output_files: []
+EOF
+
+# T-C08-1: phase deliverable missing → TaskCompleted blocked, exit 2
+run_hook "verify-task-completion.sh" \
+  "{\"cwd\":\"$C08DIR\",\"task_subject\":\"[PAS] Phase: discovery\",\"session_id\":\"c08test1\"}" \
+  2 "C08-1: missing output_files → exit 2 blocks task completion"
+
+assert_stderr_contains "phase deliverables missing" \
+  "C08-1: stderr names the failure mode"
+
+assert_stderr_contains "discovery/priorities.md" \
+  "C08-1: stderr lists the missing file"
+
+# T-C08-2: write the required files → TaskCompleted allowed
+echo "priorities content" > "$C08DIR/.pas/workspace/proc/inst-c08/discovery/priorities.md"
+echo "perspective content" > "$C08DIR/.pas/workspace/proc/inst-c08/discovery/perspective.md"
+
+run_hook "verify-task-completion.sh" \
+  "{\"cwd\":\"$C08DIR\",\"task_subject\":\"[PAS] Phase: discovery\",\"session_id\":\"c08test1\"}" \
+  0 "C08-2: all output_files present → exit 0"
+
+# T-C08-3: phase with empty output_files (no enforcement applies) → exit 0
+run_hook "verify-task-completion.sh" \
+  "{\"cwd\":\"$C08DIR\",\"task_subject\":\"[PAS] Phase: execution\",\"session_id\":\"c08test1\"}" \
+  0 "C08-3: phase with empty output_files → exit 0 (no-op)"
+
+# T-C08-4 (bonus): phase with no output_files block at all → exit 0
+cat > "$C08DIR/.pas/workspace/proc/inst-c08/status.yaml" <<'EOF'
+process: proc
+instance: inst-c08
+status: in_progress
+current_session: c08test1
+
+phases:
+  oldphase:
+    status: in_progress
+    agent: someagent
+EOF
+
+run_hook "verify-task-completion.sh" \
+  "{\"cwd\":\"$C08DIR\",\"task_subject\":\"[PAS] Phase: oldphase\",\"session_id\":\"c08test1\"}" \
+  0 "C08-4: phase with no output_files block → exit 0 (back-compat)"
+
+rm -rf "$C08DIR"
+
+# =========================================================================
 # Section: C04 — session-id-first workspace resolution
 # =========================================================================
 
