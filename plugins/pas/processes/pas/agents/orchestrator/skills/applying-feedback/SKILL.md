@@ -33,12 +33,12 @@ If untargeted: recommend where to start based on signal volume and severity.
 
 ### 3. Ask User Preference
 
-Before applying any changes, ask:
+Use the AskUserQuestion tool to present these options. Do not ask in plain text — the structured prompt makes the choice unambiguous and the user's response routable. Options:
 
-- **Apply all + remember**: apply all signals for this artifact, remember this preference for future sessions
-- **Apply all once**: apply all signals for this artifact this time only
-- **Just this**: let me pick which signals to apply one at a time
-- **Review first**: show me each signal before deciding
+1. **Apply all + remember** — apply all signals for this artifact, remember this preference for future sessions
+2. **Apply all once** — apply all signals for this artifact this time only
+3. **Just this** — let me pick which signals to apply one at a time
+4. **Review first** — show me each signal before deciding
 
 ### 4. Sanity Checks
 
@@ -117,6 +117,16 @@ Change: {what was actually changed in the artifact}
 - Remove processed signals from `feedback/backlog/`
 - Stage modified artifact and changelog
 - Commit with message: `"Apply feedback: {artifact-path} — {brief description}"`
+
+### 13. Where Do Changes Go?
+
+Two routes exist; the wrong route will file PAS-internal changes onto the user's product repo. Always:
+
+- **PAS plugin / process / agent / skill artifacts** (under `plugins/pas/`, `.pas/processes/`, `.pas/library/`) — apply edits in-repo as direct file changes. No GitHub issue.
+- **`framework:pas` signals routed to GitHub** — filed ONLY on the PAS framework repo (`ZoranSpirkovski/PAS`, enforced by `route-feedback.sh` `framework_signal_repo`). Never on the host project's repo. The hook handles this; this skill does not call `gh issue create`.
+- **Process / agent / skill signals** — stay local in the artifact's `feedback/backlog/` until an `applying-feedback` session processes them. They NEVER become GitHub issues anywhere.
+
+If you are about to call `gh issue create` from this skill, stop. The hook routes framework signals; this skill applies signals — it does not file them.
 
 ## Quality Tests
 
