@@ -33,24 +33,28 @@ else
   fi
 fi
 
-# Secondary check (P1): scan transcript for inline signal patterns
+# Secondary check (P1): scan transcript for inline signal patterns.
+# Note: `grep -c` writes "0" to stdout AND exits 1 on zero matches, so the
+# old `|| echo 0` captured a two-line "0\n0" that broke the integer test.
 if [ -n "$AGENT_TRANSCRIPT" ] && [ -f "$AGENT_TRANSCRIPT" ]; then
-  SIGNAL_COUNT=$(grep -cE '\[(PPU|OQI|GATE|STA)-[0-9]+\]' "$AGENT_TRANSCRIPT" 2>/dev/null || echo 0)
+  SIGNAL_COUNT=$(grep -cE '\[(PPU|OQI|GATE|STA)-[0-9]+\]' "$AGENT_TRANSCRIPT" 2>/dev/null) || SIGNAL_COUNT=0
   if [ "$SIGNAL_COUNT" -gt 0 ]; then
     exit 0  # Found inline signals — agent did self-eval in conversation
   fi
 fi
 
-# No self-eval found — block subagent from stopping
+# No self-eval found — block subagent from stopping.
 cat >&2 <<EOF
-SELF-EVALUATION MISSING
+PAS feedback hook: agent '${AGENT_ID}' is shutting down without writing self-evaluation.
 
-Agent '${AGENT_ID}' is shutting down without writing self-evaluation.
+This is required when feedback is enabled in .pas/config.yaml.
 
-Before stopping, write your self-evaluation to:
+To resolve, write your evaluation to:
   ${FEEDBACK_DIR}/${AGENT_ID}.md
 
-Use .pas/library/self-evaluation/SKILL.md for the format.
-If nothing went wrong, write "No issues detected."
+If nothing went wrong, the file may contain just: "No issues detected."
+
+Format reference: .pas/library/self-evaluation/SKILL.md
+To disable feedback for this project: edit .pas/config.yaml → feedback: disabled
 EOF
 exit 2

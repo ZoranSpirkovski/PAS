@@ -460,7 +460,8 @@ run_hook "check-self-eval.sh" \
   "{\"cwd\":\"$TESTDIR\",\"agent_id\":\"test-agent\"}" \
   2 "check-self-eval: agent feedback missing → exit 2"
 
-assert_stderr_contains "SELF-EVALUATION MISSING" "check-self-eval: stderr shows missing message"
+assert_stderr_contains "shutting down without writing self-evaluation" "check-self-eval: stderr shows missing message"
+assert_stderr_contains "feedback: disabled" "check-self-eval: stderr documents opt-out path"
 
 # 6c: Feedback disabled → exit 0
 cat > "$TESTDIR/.pas/config.yaml" <<'EOF'
@@ -710,6 +711,59 @@ else
 fi
 
 rm -rf "$MIGDIR"
+
+# =========================================================================
+# Section: C03 — check-self-eval.sh grep -c integer comparison fix
+# =========================================================================
+
+printf "\n${BOLD}C03. check-self-eval.sh grep -c fix${RESET}\n"
+
+# Setup: enable feedback, in_progress workspace, feedback file present so the
+# transcript-secondary path is what's exercised — and feedback file ABSENT so
+# we hit the secondary path. We need a real transcript file with no signals.
+C03DIR=$(mktemp -d)
+mkdir -p "$C03DIR/.pas/workspace/proc/inst-c03/feedback"
+printf 'feedback: enabled\n' > "$C03DIR/.pas/config.yaml"
+cat > "$C03DIR/.pas/workspace/proc/inst-c03/status.yaml" <<'EOF'
+process: proc
+instance: inst-c03
+status: in_progress
+
+phases:
+  discovery:
+    status: completed
+EOF
+
+# T-C03-1: transcript with zero signal patterns → exits 2 cleanly (block,
+# but no integer-comparison crash). Pre-fix: would crash with `[: 0\n0:
+# integer expression expected` and exit 1, not 2.
+TRANSCRIPT_NO_SIGNALS=$(mktemp)
+printf 'just some text\nno signal markers here\nfinal line\n' > "$TRANSCRIPT_NO_SIGNALS"
+
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C03DIR\",\"agent_id\":\"unknown-agent\",\"agent_transcript_path\":\"$TRANSCRIPT_NO_SIGNALS\"}" \
+  2 "C03-1: zero-signal transcript → exit 2 cleanly (no integer-comparison crash)"
+
+if grep -q 'integer expression expected' /tmp/test-hook-stderr 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C03-1: integer comparison crash leaked into stderr")
+  printf "  ${RED}FAIL${RESET} C03-1: integer comparison crash present in stderr\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C03-1: no integer-comparison error in stderr\n"
+fi
+
+# T-C03-2: transcript WITH a signal pattern → exit 0 (signal detected via
+# secondary path). No agent_id-matching feedback file should be required.
+TRANSCRIPT_WITH_SIGNAL=$(mktemp)
+printf 'agent did some work\n[PPU-01]\nTarget: skill:foo\n' > "$TRANSCRIPT_WITH_SIGNAL"
+
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C03DIR\",\"agent_id\":\"unknown-agent\",\"agent_transcript_path\":\"$TRANSCRIPT_WITH_SIGNAL\"}" \
+  0 "C03-2: transcript with PPU-01 signal → exit 0 (secondary path detects)"
+
+rm -f "$TRANSCRIPT_NO_SIGNALS" "$TRANSCRIPT_WITH_SIGNAL"
+rm -rf "$C03DIR"
 
 # =========================================================================
 # Section: C02 — pas-session-start.sh tolerates missing fields (warns)
