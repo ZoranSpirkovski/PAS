@@ -98,7 +98,7 @@ Sub-processes write their own status.yaml. Parent references via `subprocess: {p
 
 When all phases are complete:
 
-1. **Verify all output files** exist for all phases
+1. **Verify all output files** exist for all phases. The `verify-task-completion.sh` TaskCompleted hook now enforces this at phase boundaries: completing a `[PAS] Phase: <name>` task is blocked when any path under that phase's `output_files:` list is missing on disk. A phase with no `output_files:` block is unaffected. (Closes #49.)
 2. **Send downstream feedback** to each team member (if any): share relevant quality notes from later phases
 3. **Each agent writes self-evaluation** using `.pas/library/self-evaluation/SKILL.md` (when feedback is enabled). This is mandatory -- do NOT proceed to step 4 until all agents have written their feedback. Output to `.pas/workspace/{process}/{slug}/feedback/{agent-name}.md`. The `check-self-eval.sh` SubagentStop hook blocks agents from stopping without feedback, and the `verify-completion-gate.sh` Stop hook verifies ALL agents have feedback files before the orchestrator can stop.
 4. **All agents shut down together** after self-evaluation completes. The orchestrator MUST NOT instruct agents to skip self-evaluation — hook enforcement will block the session if any agent feedback is missing.
