@@ -713,6 +713,224 @@ fi
 rm -rf "$MIGDIR"
 
 # =========================================================================
+# Section: C04 — session-id-first workspace resolution
+# =========================================================================
+
+printf "\n${BOLD}C04. session-id-first workspace resolution${RESET}\n"
+
+# Two sibling workspaces under the same process; resolver should pick the
+# one whose current_session matches the given id, NOT the most-recently-
+# touched one (which was the pre-fix behavior — bug #52).
+C04DIR=$(mktemp -d)
+mkdir -p "$C04DIR/.pas/workspace/proc/inst-a/feedback"
+mkdir -p "$C04DIR/.pas/workspace/proc/inst-b/feedback"
+printf 'feedback: enabled\n' > "$C04DIR/.pas/config.yaml"
+
+# inst-a: older workspace, matches session id 'aaaa1111'
+cat > "$C04DIR/.pas/workspace/proc/inst-a/status.yaml" <<'EOF'
+process: proc
+instance: inst-a
+status: in_progress
+current_session: aaaa1111
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+# Sleep then write inst-b LATER so it has newer mtime and would win mtime fight
+sleep 0.1
+cat > "$C04DIR/.pas/workspace/proc/inst-b/status.yaml" <<'EOF'
+process: proc
+instance: inst-b
+status: in_progress
+current_session: bbbb2222
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+# T-C04-1: session id matches inst-a → resolver picks inst-a even though
+# inst-b was just written and has newer mtime
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C04DIR/.pas/workspace' aaaa1111")
+if echo "$RESULT" | grep -q "inst-a/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C04-1: session id beats mtime (picks matching workspace)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C04-1: expected inst-a, got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C04-1: picked wrong workspace (got: '%s')\n" "$RESULT"
+fi
+
+# T-C04-2: no current_session anywhere — fall back to mtime (back-compat)
+C04DIR2=$(mktemp -d)
+mkdir -p "$C04DIR2/.pas/workspace/proc/inst-x"
+mkdir -p "$C04DIR2/.pas/workspace/proc/inst-y"
+cat > "$C04DIR2/.pas/workspace/proc/inst-x/status.yaml" <<'EOF'
+process: proc
+instance: inst-x
+status: in_progress
+EOF
+sleep 0.1
+cat > "$C04DIR2/.pas/workspace/proc/inst-y/status.yaml" <<'EOF'
+process: proc
+instance: inst-y
+status: in_progress
+EOF
+
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C04DIR2/.pas/workspace' nosuchid")
+if echo "$RESULT" | grep -q "inst-y/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C04-2: no match on session id → falls back to mtime (back-compat)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C04-2: expected inst-y (newer mtime), got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C04-2: mtime fallback broken (got: '%s')\n" "$RESULT"
+fi
+
+# T-C04-3: empty session_id arg → falls back to mtime (sessions without ids)
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C04DIR2/.pas/workspace' ''")
+if echo "$RESULT" | grep -q "inst-y/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C04-3: empty session_id → mtime fallback\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C04-3: empty session_id broke resolution (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C04-3: empty session_id (got: '%s')\n" "$RESULT"
+fi
+
+# T-C04-4: matching workspace has status pending, not in_progress — session
+# id still wins over the status filter.
+C04DIR4=$(mktemp -d)
+mkdir -p "$C04DIR4/.pas/workspace/proc/inst-pending"
+mkdir -p "$C04DIR4/.pas/workspace/proc/inst-active"
+cat > "$C04DIR4/.pas/workspace/proc/inst-pending/status.yaml" <<'EOF'
+process: proc
+instance: inst-pending
+status: pending
+current_session: ccccdddd
+EOF
+sleep 0.1
+cat > "$C04DIR4/.pas/workspace/proc/inst-active/status.yaml" <<'EOF'
+process: proc
+instance: inst-active
+status: in_progress
+current_session: eeeeffff
+EOF
+
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C04DIR4/.pas/workspace' ccccdddd")
+if echo "$RESULT" | grep -q "inst-pending/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C04-4: session id beats in_progress status filter\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C04-4: expected inst-pending, got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C04-4: session id didn't beat status filter (got: '%s')\n" "$RESULT"
+fi
+
+rm -rf "$C04DIR" "$C04DIR2" "$C04DIR4"
+
+# =========================================================================
+# Section: C07 — route-feedback.sh framework_signal_repo enforcement
+# =========================================================================
+
+printf "\n${BOLD}C07. route-feedback.sh framework_signal_repo enforcement${RESET}\n"
+
+# T-C07-1: signal with valid framework_signal_repo → audit log records target.
+# We DON'T actually call gh issue create (no auth in test); the route function
+# logs the target repo BEFORE the gh call so we can assert it from log alone.
+C07DIR=$(mktemp -d)
+mkdir -p "$C07DIR/.pas/workspace/proc/inst-c07/feedback"
+cat > "$C07DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+framework_signal_repo: ZoranSpirkovski/PAS
+EOF
+cat > "$C07DIR/.pas/workspace/proc/inst-c07/status.yaml" <<'EOF'
+process: proc
+instance: inst-c07
+status: in_progress
+
+phases:
+  discovery:
+    status: completed
+EOF
+
+cat > "$C07DIR/.pas/workspace/proc/inst-c07/feedback/agent-c07.md" <<'EOF'
+[OQI-99]
+Target: framework:pas
+Route: github-issue
+Degraded: test signal for routing audit
+Priority: LOW
+EOF
+
+run_hook "route-feedback.sh" \
+  "{\"cwd\":\"$C07DIR\"}" \
+  0 "C07-1: routing with valid config → exit 0"
+
+if [ -f "$C07DIR/.pas/feedback/framework-routing.log" ] && \
+   grep -q "Filing OQI-99 on repo ZoranSpirkovski/PAS" "$C07DIR/.pas/feedback/framework-routing.log"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C07-1: audit log records target repo before gh call\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C07-1: audit log missing 'Filing OQI-99 on repo ZoranSpirkovski/PAS'")
+  printf "  ${RED}FAIL${RESET} C07-1: audit log missing target-repo line\n"
+fi
+
+# T-C07-2: signal with EMPTY framework_signal_repo → REFUSED, no gh call.
+# Achieved by clearing both project config AND CLAUDE_PLUGIN_ROOT so the
+# fallback can't supply a default either.
+C07DIR2=$(mktemp -d)
+mkdir -p "$C07DIR2/.pas/workspace/proc/inst-c07b/feedback"
+cat > "$C07DIR2/.pas/config.yaml" <<'EOF'
+feedback: enabled
+framework_signal_repo:
+EOF
+cat > "$C07DIR2/.pas/workspace/proc/inst-c07b/status.yaml" <<'EOF'
+process: proc
+instance: inst-c07b
+status: in_progress
+
+phases:
+  discovery:
+    status: completed
+EOF
+
+cat > "$C07DIR2/.pas/workspace/proc/inst-c07b/feedback/agent-c07b.md" <<'EOF'
+[OQI-98]
+Target: framework:pas
+Route: github-issue
+Degraded: test signal that should NOT be filed
+Priority: LOW
+EOF
+
+# Run with CLAUDE_PLUGIN_ROOT pointed at an empty fake plugin so fallback
+# also returns nothing — the "must refuse" path.
+FAKE_PLUGIN=$(mktemp -d)
+RESULT=$(echo "{\"cwd\":\"$C07DIR2\"}" | env CLAUDE_PLUGIN_ROOT="$FAKE_PLUGIN" bash "$HOOKS_DIR/route-feedback.sh" 2>/dev/null; echo "exit=$?")
+if echo "$RESULT" | grep -q 'exit=0'; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C07-2: hook exits 0 on empty config (no crash)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C07-2: hook crashed on empty framework_signal_repo: $RESULT")
+  printf "  ${RED}FAIL${RESET} C07-2: hook crashed (got: %s)\n" "$RESULT"
+fi
+
+if [ -f "$C07DIR2/.pas/feedback/framework-routing.log" ] && \
+   grep -q "REFUSED:.*OQI-98" "$C07DIR2/.pas/feedback/framework-routing.log"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C07-2: REFUSED log entry written for empty config\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C07-2: missing REFUSED log entry for OQI-98")
+  printf "  ${RED}FAIL${RESET} C07-2: REFUSED entry missing\n"
+fi
+
+rm -rf "$C07DIR" "$C07DIR2" "$FAKE_PLUGIN"
+
+# =========================================================================
 # Section: C03 — check-self-eval.sh grep -c integer comparison fix
 # =========================================================================
 
