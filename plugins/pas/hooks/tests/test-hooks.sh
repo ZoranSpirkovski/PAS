@@ -844,6 +844,51 @@ run_hook "check-self-eval.sh" \
   "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\",\"last_assistant_message\":\"$SHORT_MSG\"}" \
   2 "C05-8: summary-boilerplate response → exit 2 (block — that's the bug)"
 
+# T-C05-9 (C05.1 fixup): Agent-tool subagents inherit parent's SessionStart
+# context, not their own. The injected text MUST include a SUBAGENT NOTE
+# carve-out so subagents reading the parent's context know the lifecycle
+# does not apply to them — without this, Explore/Plan/general-purpose
+# subagents short-circuit into the PAS shutdown ritual (the residual #38
+# behavior caught in I2 validation).
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C05DIR\",\"source\":\"startup\",\"session_id\":\"c05fixup\"}" \
+  0 "C05-9: orchestrator SessionStart exits 0 with SUBAGENT NOTE present"
+
+assert_stdout_contains "SUBAGENT NOTE" \
+  "C05-9: orchestrator's injected text includes SUBAGENT NOTE carve-out"
+
+assert_stdout_contains "spawned via the Agent tool" \
+  "C05-9: SUBAGENT NOTE explains who it applies to"
+
+assert_stdout_contains "DO NOT follow this lifecycle" \
+  "C05-9: SUBAGENT NOTE gives subagents an explicit opt-out"
+
+# T-C05-10 (C05.1 fixup): LAST_MSG with embedded newlines must not crash
+# the integer comparison. Pre-fix: `wc -c | tr -d ' '` could leave a
+# trailing newline in LAST_MSG_LEN; `[ "$X" -gt 200 ]` then crashed under
+# set -euo pipefail with "integer expression expected" — same family as
+# #55. The printf '%s' + tr '[:space:]' fix prevents the crash.
+LONG_MSG_WITH_NEWLINE=$(printf '%s\n%s\n%s' \
+  "Multi-line substantive response that the agent wrote as its actual report." \
+  "It includes embedded newlines because real subagent responses do." \
+  "Total length is comfortably over the 200-char threshold for the bypass.")
+
+# Use jq to safely encode the multi-line string into the JSON payload.
+LMSG_JSON=$(printf '%s' "$LONG_MSG_WITH_NEWLINE" | jq -Rs .)
+PAYLOAD="{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\",\"last_assistant_message\":${LMSG_JSON}}"
+
+run_hook "check-self-eval.sh" "$PAYLOAD" 0 \
+  "C05-10: LAST_MSG with newlines → exit 0 cleanly (no integer-expression crash)"
+
+if grep -qE 'integer expression expected' /tmp/test-hook-stderr 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C05-10: integer expression crash leaked into stderr")
+  printf "  ${RED}FAIL${RESET} C05-10: integer expression crash present in stderr\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C05-10: no integer-expression error in stderr\n"
+fi
+
 rm -rf "$C05DIR"
 
 # =========================================================================

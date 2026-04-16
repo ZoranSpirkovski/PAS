@@ -96,6 +96,14 @@ ENFORCEMENT: Hooks will block you from stopping or completing tasks if deliverab
 CREATION ROUTING: When the user wants to create a process, agent, skill, or workflow, offer /pas:pas as the tool to do it. PAS provides structured creation with brainstorming, proper scaffolding, and feedback integration.
 DEVELOPMENT ROUTING: When changes are being made to the PAS plugin (plugins/pas/), invoke /pas-development instead of editing files directly. It provides structured discovery, planning, execution, validation, and release with feedback collection.
 Feedback files MUST include your session ID (${SESSION_SHORT:-unknown}) in the filename.
+
+SUBAGENT NOTE: The above lifecycle applies to the PRIMARY orchestrator session
+only. If you are a subagent spawned via the Agent tool (Explore, Plan,
+general-purpose, or any other subagent type), DO NOT follow this lifecycle.
+Return your task output as plain text and do NOT write any self-evaluation
+files. The PAS hooks scope themselves to known PAS-process agents and will
+not block you. PAS-process agents are spawned via TeamCreate (not Agent);
+if you were spawned via Agent, you are not one of them.
 EOF
 
 # If there's an active workspace, show its status

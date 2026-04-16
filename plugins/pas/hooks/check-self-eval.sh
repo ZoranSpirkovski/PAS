@@ -62,7 +62,7 @@ fi
 # exploration text. If the agent's last_assistant_message is long AND not
 # a known summary boilerplate, treat it as substantive — bypass the gate
 # and emit an audit line so the bypass is visible.
-LAST_MSG_LEN=$(echo -n "$LAST_MSG" | wc -c | tr -d ' ')
+LAST_MSG_LEN=$(printf '%s' "$LAST_MSG" | wc -c | tr -d '[:space:]')
 if [ -n "$LAST_MSG" ] && [ "$LAST_MSG_LEN" -gt 200 ]; then
   # Known summary boilerplates that should NOT count as substantive.
   # Match the exact strings observed in #71 / #68 / #38 reports.
