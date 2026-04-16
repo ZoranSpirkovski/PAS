@@ -749,6 +749,80 @@ fi
 rm -rf "$MIGDIR"
 
 # =========================================================================
+# Section: C02 — pas-session-start.sh tolerates missing fields (warns)
+# =========================================================================
+
+printf "\n${BOLD}C02. pas-session-start.sh missing-field tolerance${RESET}\n"
+
+# T-C02-1: status.yaml missing instance: → exit 0, warn names instance
+C02DIR=$(mktemp -d)
+mkdir -p "$C02DIR/.pas/workspace/proc/inst-1/feedback"
+printf 'feedback: enabled\n' > "$C02DIR/.pas/config.yaml"
+cat > "$C02DIR/.pas/workspace/proc/inst-1/status.yaml" <<'EOF'
+process: proc
+status: in_progress
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C02DIR\",\"source\":\"startup\",\"session_id\":\"c02test1\"}" \
+  0 "C02-1: missing instance field → exit 0"
+
+assert_stdout_contains "Missing required fields: instance" \
+  "C02-1: stdout warns about missing instance field"
+
+# T-C02-2: status.yaml missing instance AND status — defaults applied
+C02DIR2=$(mktemp -d)
+mkdir -p "$C02DIR2/.pas/workspace/proc/inst-2/feedback"
+printf 'feedback: enabled\n' > "$C02DIR2/.pas/config.yaml"
+cat > "$C02DIR2/.pas/workspace/proc/inst-2/status.yaml" <<'EOF'
+process: proc
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C02DIR2\",\"source\":\"startup\",\"session_id\":\"c02test2\"}" \
+  0 "C02-2: missing instance AND status → exit 0"
+
+assert_stdout_contains "inst-2 (status: unknown)" \
+  "C02-2: INSTANCE defaults to dirname, status to 'unknown'"
+
+# T-C02-3: complete status.yaml — no warning
+C02DIR3=$(mktemp -d)
+mkdir -p "$C02DIR3/.pas/workspace/proc/inst-3/feedback"
+printf 'feedback: enabled\n' > "$C02DIR3/.pas/config.yaml"
+cat > "$C02DIR3/.pas/workspace/proc/inst-3/status.yaml" <<'EOF'
+process: proc
+instance: inst-3
+status: in_progress
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C02DIR3\",\"source\":\"startup\",\"session_id\":\"c02test3\"}" \
+  0 "C02-3: complete status.yaml → exit 0"
+
+if grep -q "Missing required fields" /tmp/test-hook-stdout 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C02-3: complete status.yaml should NOT trigger warning")
+  printf "  ${RED}FAIL${RESET} C02-3: warning printed for complete status.yaml\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C02-3: no warning for complete status.yaml\n"
+fi
+
+rm -rf "$C02DIR" "$C02DIR2" "$C02DIR3"
+
+# =========================================================================
 # Section: C01 — lib/guards.sh defensive defaults + resolve_pas_project_root
 # =========================================================================
 
