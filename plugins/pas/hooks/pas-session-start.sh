@@ -89,11 +89,37 @@ EOF
 # If there's an active workspace, show its status
 if [ -n "$ACTIVE_STATUS" ]; then
   ACTIVE_WORKSPACE=$(dirname "$ACTIVE_STATUS")
-  TOP_STATUS=$(grep '^status:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}')
-  PROCESS_NAME=$(grep '^process:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}')
-  INSTANCE=$(grep '^instance:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}')
+
+  # Use safe_grep_field (from lib/guards.sh) so missing fields don't crash
+  # the script under set -euo pipefail.
+  TOP_STATUS=$(safe_grep_field "$ACTIVE_STATUS" status)
+  PROCESS_NAME=$(safe_grep_field "$ACTIVE_STATUS" process)
+  INSTANCE=$(safe_grep_field "$ACTIVE_STATUS" instance)
+
+  # Accumulate missing-field warnings; default to useful values so the
+  # display is never just "Active workspace: / (status: )".
+  MISSING_FIELDS=""
+  if [ -z "$TOP_STATUS" ]; then
+    MISSING_FIELDS="status"
+    TOP_STATUS="unknown"
+  fi
+  if [ -z "$PROCESS_NAME" ]; then
+    MISSING_FIELDS="${MISSING_FIELDS:+$MISSING_FIELDS, }process"
+  fi
+  if [ -z "$INSTANCE" ]; then
+    INSTANCE=$(basename "$ACTIVE_WORKSPACE")
+    MISSING_FIELDS="${MISSING_FIELDS:+$MISSING_FIELDS, }instance"
+  fi
 
   echo ""
+  if [ -n "$MISSING_FIELDS" ]; then
+    echo "PAS workspace detected at: ${ACTIVE_WORKSPACE}"
+    echo "  Status file: ${ACTIVE_STATUS}"
+    echo "  Missing required fields: ${MISSING_FIELDS}"
+    echo "  See: library/orchestration/lifecycle.md (status.yaml schema)"
+    echo "  Continuing with derived values — fix status.yaml to silence this warning."
+    echo ""
+  fi
   echo "Active workspace: ${PROCESS_NAME}/${INSTANCE} (status: ${TOP_STATUS})"
   echo "Path: ${ACTIVE_WORKSPACE}"
 
