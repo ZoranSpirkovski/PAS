@@ -12,6 +12,17 @@ source "$SCRIPT_DIR/lib/guards.sh"
 guard_parse_input || exit 0
 guard_pas_project || exit 0
 
+# Subagent guard (#38, #68): when SessionStart fires inside a subagent
+# context, skip the lifecycle injection. The heredoc's "MUST follow this
+# lifecycle / hooks will block you" text was making generic Explore /
+# general-purpose subagents short-circuit into the PAS shutdown ritual
+# instead of doing their actual task. CC v2.1.69+ exposes agent_id in
+# subagent SessionStart events; absence means orchestrator session.
+HOOK_AGENT_ID=$(echo "$INPUT" | jq -r '.agent_id // empty')
+if [ -n "$HOOK_AGENT_ID" ] && [ "$HOOK_AGENT_ID" != "null" ]; then
+  exit 0  # Subagent context — do not inject PAS lifecycle text
+fi
+
 FEEDBACK_STATUS=$(grep -o 'feedback:[[:space:]]*\w*' "$PAS_CONFIG" | head -1 | awk '{print $NF}')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
 
