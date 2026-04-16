@@ -138,6 +138,9 @@ guard_feedback_enabled() {
 # Sets ACTIVE_STATUS, ACTIVE_WORKSPACE, FEEDBACK_DIR.
 # Uses PAS_PROJECT_ROOT (set by guard_pas_project) so worktree-cwd sessions
 # resolve to the main checkout's .pas/workspace/.
+# When INPUT carries a session_id, the resolver prefers the workspace whose
+# current_session: matches — this closes the multi-instance picking-the-
+# wrong-workspace bug (#52).
 # Returns 1 if no workspace found.
 guard_active_workspace() {
   local script_dir="$1"
@@ -153,7 +156,19 @@ guard_active_workspace() {
     return 1
   fi
 
-  ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR") || return 1
+  # Derive short session id from INPUT (if present); pass to the resolver
+  # so multi-instance resolution picks the workspace this session is
+  # working on, not the most-recently-touched sibling.
+  local session_short=""
+  if [ -n "${INPUT:-}" ]; then
+    local full_session
+    full_session=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+    if [ -n "$full_session" ]; then
+      session_short=$(echo "$full_session" | cut -c1-8)
+    fi
+  fi
+
+  ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR" "$session_short") || return 1
   ACTIVE_WORKSPACE=$(dirname "$ACTIVE_STATUS")
   FEEDBACK_DIR="$ACTIVE_WORKSPACE/feedback"
 }
