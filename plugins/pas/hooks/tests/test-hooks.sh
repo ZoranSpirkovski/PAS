@@ -460,7 +460,8 @@ run_hook "check-self-eval.sh" \
   "{\"cwd\":\"$TESTDIR\",\"agent_id\":\"test-agent\"}" \
   2 "check-self-eval: agent feedback missing → exit 2"
 
-assert_stderr_contains "SELF-EVALUATION MISSING" "check-self-eval: stderr shows missing message"
+assert_stderr_contains "shutting down without writing self-evaluation" "check-self-eval: stderr shows missing message"
+assert_stderr_contains "feedback: disabled" "check-self-eval: stderr documents opt-out path"
 
 # 6c: Feedback disabled → exit 0
 cat > "$TESTDIR/.pas/config.yaml" <<'EOF'
@@ -710,6 +711,721 @@ else
 fi
 
 rm -rf "$MIGDIR"
+
+# =========================================================================
+# Section: C05 — agent_type scoping + #71 substantive-message bypass
+# =========================================================================
+
+printf "\n${BOLD}C05. agent_type scoping for non-PAS subagents${RESET}\n"
+
+# Setup a workspace whose status.yaml declares specific PAS agents
+C05DIR=$(mktemp -d)
+mkdir -p "$C05DIR/.pas/workspace/proc/inst-c05/feedback"
+printf 'feedback: enabled\n' > "$C05DIR/.pas/config.yaml"
+cat > "$C05DIR/.pas/workspace/proc/inst-c05/status.yaml" <<'EOF'
+process: proc
+instance: inst-c05
+status: in_progress
+current_session: c05test1
+
+phases:
+  discovery:
+    status: in_progress
+    agent: [framework-architect, dx-specialist]
+  planning:
+    status: pending
+    agent: framework-architect
+EOF
+
+# T-C05-1: agent_type "Explore" (not in status.yaml allowlist), no feedback
+# file → SubagentStop exits 0 silently (non-PAS passthrough). This is the
+# core bug from #67/#68/#38.
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"some-explore-id\",\"agent_type\":\"Explore\"}" \
+  0 "C05-1: agent_type Explore → exit 0 (non-PAS passthrough)"
+
+# T-C05-2: agent_type framework-architect (in allowlist), no feedback file
+# → SubagentStop exits 2 (PAS scoping retained — gate still works).
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\"}" \
+  2 "C05-2: PAS-defined agent without feedback → exit 2 (gate enforced)"
+
+assert_stderr_contains "shutting down without writing self-evaluation" \
+  "C05-2: stderr shows the standard block message"
+
+# T-C05-3: PAS agent with feedback file present → exit 0
+echo "No issues detected." > "$C05DIR/.pas/workspace/proc/inst-c05/feedback/framework-architect.md"
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\"}" \
+  0 "C05-3: PAS agent with feedback file → exit 0"
+
+# T-C05-4: empty agent_type → SAFE-FAIL to "treat as PAS agent" (over-block).
+# A previously-passing fixture (no feedback file for unknown agent) must
+# still block — confirms we did NOT silently weaken the gate.
+rm -f "$C05DIR/.pas/workspace/proc/inst-c05/feedback/framework-architect.md"
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"unknown-agent\",\"agent_type\":\"\"}" \
+  2 "C05-4: empty agent_type → safe-fail over-block (gate not weakened)"
+
+# T-C05-5: SessionStart with non-empty agent_id → no PAS lifecycle text
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C05DIR\",\"source\":\"startup\",\"session_id\":\"c05sub1\",\"agent_id\":\"some-subagent-id\"}" \
+  0 "C05-5: SessionStart with agent_id → exit 0"
+
+if grep -q "PAS Framework Active" /tmp/test-hook-stdout 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C05-5: SessionStart should NOT inject 'PAS Framework Active' for subagents")
+  printf "  ${RED}FAIL${RESET} C05-5: PAS lifecycle text leaked into subagent context\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C05-5: no PAS lifecycle text in subagent SessionStart\n"
+fi
+
+# T-C05-6: SessionStart with empty agent_id (orchestrator) → full text injected
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C05DIR\",\"source\":\"startup\",\"session_id\":\"c05orch1\"}" \
+  0 "C05-6: SessionStart without agent_id → exit 0"
+
+assert_stdout_contains "PAS Framework Active" \
+  "C05-6: orchestrator SessionStart still injects lifecycle text"
+
+# T-C05-7: substantive last_assistant_message (>200 chars, no summary
+# keywords) → exits 0 with audit-line on stderr (#71 substantive bypass).
+LONG_MSG="This is a long substantive review message that contains the actual findings the parent agent needs to receive. It deliberately avoids any of the boilerplate summary phrases that the bypass heuristic looks for, so the gate must let this through. The message is well over two hundred characters so the length check passes too."
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\",\"last_assistant_message\":\"$LONG_MSG\"}" \
+  0 "C05-7: substantive response → exit 0 (#71 bypass)"
+
+assert_stderr_contains "substantive response detected" \
+  "C05-7: stderr emits audit line so bypass is visible"
+
+# T-C05-8: short summary boilerplate → still blocks (the bug we're fixing).
+# "Self-evaluation written. No issues detected during this review." is
+# exactly the elision text from the #71 bug report.
+SHORT_MSG="Self-evaluation written. No issues detected during this review."
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\",\"last_assistant_message\":\"$SHORT_MSG\"}" \
+  2 "C05-8: summary-boilerplate response → exit 2 (block — that's the bug)"
+
+# T-C05-9 (C05.1 fixup): Agent-tool subagents inherit parent's SessionStart
+# context, not their own. The injected text MUST include a SUBAGENT NOTE
+# carve-out so subagents reading the parent's context know the lifecycle
+# does not apply to them — without this, Explore/Plan/general-purpose
+# subagents short-circuit into the PAS shutdown ritual (the residual #38
+# behavior caught in I2 validation).
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C05DIR\",\"source\":\"startup\",\"session_id\":\"c05fixup\"}" \
+  0 "C05-9: orchestrator SessionStart exits 0 with SUBAGENT NOTE present"
+
+assert_stdout_contains "SUBAGENT NOTE" \
+  "C05-9: orchestrator's injected text includes SUBAGENT NOTE carve-out"
+
+assert_stdout_contains "spawned via the Agent tool" \
+  "C05-9: SUBAGENT NOTE explains who it applies to"
+
+assert_stdout_contains "DO NOT follow this lifecycle" \
+  "C05-9: SUBAGENT NOTE gives subagents an explicit opt-out"
+
+# T-C05-10 (C05.1 fixup): LAST_MSG with embedded newlines must not crash
+# the integer comparison. Pre-fix: `wc -c | tr -d ' '` could leave a
+# trailing newline in LAST_MSG_LEN; `[ "$X" -gt 200 ]` then crashed under
+# set -euo pipefail with "integer expression expected" — same family as
+# #55. The printf '%s' + tr '[:space:]' fix prevents the crash.
+LONG_MSG_WITH_NEWLINE=$(printf '%s\n%s\n%s' \
+  "Multi-line substantive response that the agent wrote as its actual report." \
+  "It includes embedded newlines because real subagent responses do." \
+  "Total length is comfortably over the 200-char threshold for the bypass.")
+
+# Use jq to safely encode the multi-line string into the JSON payload.
+LMSG_JSON=$(printf '%s' "$LONG_MSG_WITH_NEWLINE" | jq -Rs .)
+PAYLOAD="{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\",\"last_assistant_message\":${LMSG_JSON}}"
+
+run_hook "check-self-eval.sh" "$PAYLOAD" 0 \
+  "C05-10: LAST_MSG with newlines → exit 0 cleanly (no integer-expression crash)"
+
+if grep -qE 'integer expression expected' /tmp/test-hook-stderr 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C05-10: integer expression crash leaked into stderr")
+  printf "  ${RED}FAIL${RESET} C05-10: integer expression crash present in stderr\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C05-10: no integer-expression error in stderr\n"
+fi
+
+rm -rf "$C05DIR"
+
+# =========================================================================
+# Section: C06 — verify-completion-gate absolute-path diagnostics
+# =========================================================================
+
+printf "\n${BOLD}C06. verify-completion-gate absolute-path diagnostics${RESET}\n"
+
+C06DIR=$(mktemp -d)
+mkdir -p "$C06DIR/.pas/workspace/proc/inst-c06/feedback"
+printf 'feedback: enabled\n' > "$C06DIR/.pas/config.yaml"
+cat > "$C06DIR/.pas/workspace/proc/inst-c06/status.yaml" <<'EOF'
+process: proc
+instance: inst-c06
+status: in_progress
+current_session: c06test1
+
+phases:
+  discovery:
+    status: completed
+EOF
+
+# T-C06-1: missing orchestrator feedback → stderr contains an absolute path
+# (starts with /), not just the bare filename.
+run_hook "verify-completion-gate.sh" \
+  "{\"cwd\":\"$C06DIR\",\"stop_hook_active\":false,\"session_id\":\"c06test1\"}" \
+  2 "C06-1: missing orchestrator → exit 2"
+
+if grep -qE "Orchestrator self-evaluation missing: /" /tmp/test-hook-stderr 2>/dev/null; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C06-1: stderr names absolute path (starts with /)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C06-1: stderr missing absolute orchestrator path")
+  printf "  ${RED}FAIL${RESET} C06-1: stderr missing absolute path\n"
+fi
+
+# T-C06-2: stderr includes the resolver diagnostic line
+assert_stderr_contains "Resolved PAS_PROJECT_ROOT:" \
+  "C06-2: stderr exposes PAS_PROJECT_ROOT for diagnosability"
+
+assert_stderr_contains "Checked feedback dir:" \
+  "C06-2: stderr names the feedback dir actually checked"
+
+# T-C06-3: worktree fixture — agent writes feedback in main checkout's .pas/,
+# hook called from worktree cwd → exits 0 because PAS_PROJECT_ROOT resolves
+# back to the main worktree (closes #70-F4 deadlock + makes the diagnostic
+# the only thing the user sees on a true mismatch, not a phantom failure).
+WTBASE=$(mktemp -d)
+( cd "$WTBASE" && git init -q && git -c user.email=t@t -c user.name=t commit --allow-empty -m init -q ) >/dev/null 2>&1
+mkdir -p "$WTBASE/.pas/workspace/proc/inst-wt/feedback"
+printf 'feedback: enabled\n' > "$WTBASE/.pas/config.yaml"
+cat > "$WTBASE/.pas/workspace/proc/inst-wt/status.yaml" <<'EOF'
+process: proc
+instance: inst-wt
+status: in_progress
+current_session: wt12abcd
+
+phases:
+  discovery:
+    status: completed
+EOF
+echo "ok" > "$WTBASE/.pas/workspace/proc/inst-wt/feedback/orchestrator-wt12abcd.md"
+( cd "$WTBASE" && git worktree add -q "$WTBASE/.wt-c06" -b c06-test-branch ) >/dev/null 2>&1
+
+if [ -d "$WTBASE/.wt-c06" ]; then
+  run_hook "verify-completion-gate.sh" \
+    "{\"cwd\":\"$WTBASE/.wt-c06\",\"stop_hook_active\":false,\"session_id\":\"wt12abcd\"}" \
+    0 "C06-3: worktree cwd resolves to main .pas/, finds feedback → exit 0"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C06-3: worktree fixture unavailable (skipped)\n"
+fi
+rm -rf "$WTBASE" "$C06DIR"
+
+# =========================================================================
+# Section: C08 — verify-task-completion phase output_files checkpoint
+# =========================================================================
+
+printf "\n${BOLD}C08. verify-task-completion output_files checkpoint${RESET}\n"
+
+C08DIR=$(mktemp -d)
+mkdir -p "$C08DIR/.pas/workspace/proc/inst-c08/feedback"
+mkdir -p "$C08DIR/.pas/workspace/proc/inst-c08/discovery"
+printf 'feedback: enabled\n' > "$C08DIR/.pas/config.yaml"
+
+# status.yaml uses the live key-based phase schema (matches cycle-14/status.yaml)
+cat > "$C08DIR/.pas/workspace/proc/inst-c08/status.yaml" <<'EOF'
+process: proc
+instance: inst-c08
+status: in_progress
+current_session: c08test1
+
+phases:
+  discovery:
+    status: in_progress
+    agent: framework-architect
+    output_files:
+      - discovery/priorities.md
+      - discovery/perspective.md
+  planning:
+    status: pending
+    agent: framework-architect
+    output_files:
+      - planning/implementation-plan.md
+  execution:
+    status: pending
+    output_files: []
+EOF
+
+# T-C08-1: phase deliverable missing → TaskCompleted blocked, exit 2
+run_hook "verify-task-completion.sh" \
+  "{\"cwd\":\"$C08DIR\",\"task_subject\":\"[PAS] Phase: discovery\",\"session_id\":\"c08test1\"}" \
+  2 "C08-1: missing output_files → exit 2 blocks task completion"
+
+assert_stderr_contains "phase deliverables missing" \
+  "C08-1: stderr names the failure mode"
+
+assert_stderr_contains "discovery/priorities.md" \
+  "C08-1: stderr lists the missing file"
+
+# T-C08-2: write the required files → TaskCompleted allowed
+echo "priorities content" > "$C08DIR/.pas/workspace/proc/inst-c08/discovery/priorities.md"
+echo "perspective content" > "$C08DIR/.pas/workspace/proc/inst-c08/discovery/perspective.md"
+
+run_hook "verify-task-completion.sh" \
+  "{\"cwd\":\"$C08DIR\",\"task_subject\":\"[PAS] Phase: discovery\",\"session_id\":\"c08test1\"}" \
+  0 "C08-2: all output_files present → exit 0"
+
+# T-C08-3: phase with empty output_files (no enforcement applies) → exit 0
+run_hook "verify-task-completion.sh" \
+  "{\"cwd\":\"$C08DIR\",\"task_subject\":\"[PAS] Phase: execution\",\"session_id\":\"c08test1\"}" \
+  0 "C08-3: phase with empty output_files → exit 0 (no-op)"
+
+# T-C08-4 (bonus): phase with no output_files block at all → exit 0
+cat > "$C08DIR/.pas/workspace/proc/inst-c08/status.yaml" <<'EOF'
+process: proc
+instance: inst-c08
+status: in_progress
+current_session: c08test1
+
+phases:
+  oldphase:
+    status: in_progress
+    agent: someagent
+EOF
+
+run_hook "verify-task-completion.sh" \
+  "{\"cwd\":\"$C08DIR\",\"task_subject\":\"[PAS] Phase: oldphase\",\"session_id\":\"c08test1\"}" \
+  0 "C08-4: phase with no output_files block → exit 0 (back-compat)"
+
+rm -rf "$C08DIR"
+
+# =========================================================================
+# Section: C04 — session-id-first workspace resolution
+# =========================================================================
+
+printf "\n${BOLD}C04. session-id-first workspace resolution${RESET}\n"
+
+# Two sibling workspaces under the same process; resolver should pick the
+# one whose current_session matches the given id, NOT the most-recently-
+# touched one (which was the pre-fix behavior — bug #52).
+C04DIR=$(mktemp -d)
+mkdir -p "$C04DIR/.pas/workspace/proc/inst-a/feedback"
+mkdir -p "$C04DIR/.pas/workspace/proc/inst-b/feedback"
+printf 'feedback: enabled\n' > "$C04DIR/.pas/config.yaml"
+
+# inst-a: older workspace, matches session id 'aaaa1111'
+cat > "$C04DIR/.pas/workspace/proc/inst-a/status.yaml" <<'EOF'
+process: proc
+instance: inst-a
+status: in_progress
+current_session: aaaa1111
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+# Sleep then write inst-b LATER so it has newer mtime and would win mtime fight
+sleep 0.1
+cat > "$C04DIR/.pas/workspace/proc/inst-b/status.yaml" <<'EOF'
+process: proc
+instance: inst-b
+status: in_progress
+current_session: bbbb2222
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+# T-C04-1: session id matches inst-a → resolver picks inst-a even though
+# inst-b was just written and has newer mtime
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C04DIR/.pas/workspace' aaaa1111")
+if echo "$RESULT" | grep -q "inst-a/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C04-1: session id beats mtime (picks matching workspace)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C04-1: expected inst-a, got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C04-1: picked wrong workspace (got: '%s')\n" "$RESULT"
+fi
+
+# T-C04-2: no current_session anywhere — fall back to mtime (back-compat)
+C04DIR2=$(mktemp -d)
+mkdir -p "$C04DIR2/.pas/workspace/proc/inst-x"
+mkdir -p "$C04DIR2/.pas/workspace/proc/inst-y"
+cat > "$C04DIR2/.pas/workspace/proc/inst-x/status.yaml" <<'EOF'
+process: proc
+instance: inst-x
+status: in_progress
+EOF
+sleep 0.1
+cat > "$C04DIR2/.pas/workspace/proc/inst-y/status.yaml" <<'EOF'
+process: proc
+instance: inst-y
+status: in_progress
+EOF
+
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C04DIR2/.pas/workspace' nosuchid")
+if echo "$RESULT" | grep -q "inst-y/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C04-2: no match on session id → falls back to mtime (back-compat)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C04-2: expected inst-y (newer mtime), got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C04-2: mtime fallback broken (got: '%s')\n" "$RESULT"
+fi
+
+# T-C04-3: empty session_id arg → falls back to mtime (sessions without ids)
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C04DIR2/.pas/workspace' ''")
+if echo "$RESULT" | grep -q "inst-y/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C04-3: empty session_id → mtime fallback\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C04-3: empty session_id broke resolution (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C04-3: empty session_id (got: '%s')\n" "$RESULT"
+fi
+
+# T-C04-4: matching workspace has status pending, not in_progress — session
+# id still wins over the status filter.
+C04DIR4=$(mktemp -d)
+mkdir -p "$C04DIR4/.pas/workspace/proc/inst-pending"
+mkdir -p "$C04DIR4/.pas/workspace/proc/inst-active"
+cat > "$C04DIR4/.pas/workspace/proc/inst-pending/status.yaml" <<'EOF'
+process: proc
+instance: inst-pending
+status: pending
+current_session: ccccdddd
+EOF
+sleep 0.1
+cat > "$C04DIR4/.pas/workspace/proc/inst-active/status.yaml" <<'EOF'
+process: proc
+instance: inst-active
+status: in_progress
+current_session: eeeeffff
+EOF
+
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C04DIR4/.pas/workspace' ccccdddd")
+if echo "$RESULT" | grep -q "inst-pending/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C04-4: session id beats in_progress status filter\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C04-4: expected inst-pending, got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C04-4: session id didn't beat status filter (got: '%s')\n" "$RESULT"
+fi
+
+rm -rf "$C04DIR" "$C04DIR2" "$C04DIR4"
+
+# =========================================================================
+# Section: C07 — route-feedback.sh framework_signal_repo enforcement
+# =========================================================================
+
+printf "\n${BOLD}C07. route-feedback.sh framework_signal_repo enforcement${RESET}\n"
+
+# T-C07-1: signal with valid framework_signal_repo → audit log records target.
+# We DON'T actually call gh issue create (no auth in test); the route function
+# logs the target repo BEFORE the gh call so we can assert it from log alone.
+C07DIR=$(mktemp -d)
+mkdir -p "$C07DIR/.pas/workspace/proc/inst-c07/feedback"
+cat > "$C07DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+framework_signal_repo: ZoranSpirkovski/PAS
+EOF
+cat > "$C07DIR/.pas/workspace/proc/inst-c07/status.yaml" <<'EOF'
+process: proc
+instance: inst-c07
+status: in_progress
+
+phases:
+  discovery:
+    status: completed
+EOF
+
+cat > "$C07DIR/.pas/workspace/proc/inst-c07/feedback/agent-c07.md" <<'EOF'
+[OQI-99]
+Target: framework:pas
+Route: github-issue
+Degraded: test signal for routing audit
+Priority: LOW
+EOF
+
+run_hook "route-feedback.sh" \
+  "{\"cwd\":\"$C07DIR\"}" \
+  0 "C07-1: routing with valid config → exit 0"
+
+if [ -f "$C07DIR/.pas/feedback/framework-routing.log" ] && \
+   grep -q "Filing OQI-99 on repo ZoranSpirkovski/PAS" "$C07DIR/.pas/feedback/framework-routing.log"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C07-1: audit log records target repo before gh call\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C07-1: audit log missing 'Filing OQI-99 on repo ZoranSpirkovski/PAS'")
+  printf "  ${RED}FAIL${RESET} C07-1: audit log missing target-repo line\n"
+fi
+
+# T-C07-2: signal with EMPTY framework_signal_repo → REFUSED, no gh call.
+# Achieved by clearing both project config AND CLAUDE_PLUGIN_ROOT so the
+# fallback can't supply a default either.
+C07DIR2=$(mktemp -d)
+mkdir -p "$C07DIR2/.pas/workspace/proc/inst-c07b/feedback"
+cat > "$C07DIR2/.pas/config.yaml" <<'EOF'
+feedback: enabled
+framework_signal_repo:
+EOF
+cat > "$C07DIR2/.pas/workspace/proc/inst-c07b/status.yaml" <<'EOF'
+process: proc
+instance: inst-c07b
+status: in_progress
+
+phases:
+  discovery:
+    status: completed
+EOF
+
+cat > "$C07DIR2/.pas/workspace/proc/inst-c07b/feedback/agent-c07b.md" <<'EOF'
+[OQI-98]
+Target: framework:pas
+Route: github-issue
+Degraded: test signal that should NOT be filed
+Priority: LOW
+EOF
+
+# Run with CLAUDE_PLUGIN_ROOT pointed at an empty fake plugin so fallback
+# also returns nothing — the "must refuse" path.
+FAKE_PLUGIN=$(mktemp -d)
+RESULT=$(echo "{\"cwd\":\"$C07DIR2\"}" | env CLAUDE_PLUGIN_ROOT="$FAKE_PLUGIN" bash "$HOOKS_DIR/route-feedback.sh" 2>/dev/null; echo "exit=$?")
+if echo "$RESULT" | grep -q 'exit=0'; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C07-2: hook exits 0 on empty config (no crash)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C07-2: hook crashed on empty framework_signal_repo: $RESULT")
+  printf "  ${RED}FAIL${RESET} C07-2: hook crashed (got: %s)\n" "$RESULT"
+fi
+
+if [ -f "$C07DIR2/.pas/feedback/framework-routing.log" ] && \
+   grep -q "REFUSED:.*OQI-98" "$C07DIR2/.pas/feedback/framework-routing.log"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C07-2: REFUSED log entry written for empty config\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C07-2: missing REFUSED log entry for OQI-98")
+  printf "  ${RED}FAIL${RESET} C07-2: REFUSED entry missing\n"
+fi
+
+rm -rf "$C07DIR" "$C07DIR2" "$FAKE_PLUGIN"
+
+# =========================================================================
+# Section: C03 — check-self-eval.sh grep -c integer comparison fix
+# =========================================================================
+
+printf "\n${BOLD}C03. check-self-eval.sh grep -c fix${RESET}\n"
+
+# Setup: enable feedback, in_progress workspace, feedback file present so the
+# transcript-secondary path is what's exercised — and feedback file ABSENT so
+# we hit the secondary path. We need a real transcript file with no signals.
+C03DIR=$(mktemp -d)
+mkdir -p "$C03DIR/.pas/workspace/proc/inst-c03/feedback"
+printf 'feedback: enabled\n' > "$C03DIR/.pas/config.yaml"
+cat > "$C03DIR/.pas/workspace/proc/inst-c03/status.yaml" <<'EOF'
+process: proc
+instance: inst-c03
+status: in_progress
+
+phases:
+  discovery:
+    status: completed
+EOF
+
+# T-C03-1: transcript with zero signal patterns → exits 2 cleanly (block,
+# but no integer-comparison crash). Pre-fix: would crash with `[: 0\n0:
+# integer expression expected` and exit 1, not 2.
+TRANSCRIPT_NO_SIGNALS=$(mktemp)
+printf 'just some text\nno signal markers here\nfinal line\n' > "$TRANSCRIPT_NO_SIGNALS"
+
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C03DIR\",\"agent_id\":\"unknown-agent\",\"agent_transcript_path\":\"$TRANSCRIPT_NO_SIGNALS\"}" \
+  2 "C03-1: zero-signal transcript → exit 2 cleanly (no integer-comparison crash)"
+
+if grep -q 'integer expression expected' /tmp/test-hook-stderr 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C03-1: integer comparison crash leaked into stderr")
+  printf "  ${RED}FAIL${RESET} C03-1: integer comparison crash present in stderr\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C03-1: no integer-comparison error in stderr\n"
+fi
+
+# T-C03-2: transcript WITH a signal pattern → exit 0 (signal detected via
+# secondary path). No agent_id-matching feedback file should be required.
+TRANSCRIPT_WITH_SIGNAL=$(mktemp)
+printf 'agent did some work\n[PPU-01]\nTarget: skill:foo\n' > "$TRANSCRIPT_WITH_SIGNAL"
+
+run_hook "check-self-eval.sh" \
+  "{\"cwd\":\"$C03DIR\",\"agent_id\":\"unknown-agent\",\"agent_transcript_path\":\"$TRANSCRIPT_WITH_SIGNAL\"}" \
+  0 "C03-2: transcript with PPU-01 signal → exit 0 (secondary path detects)"
+
+rm -f "$TRANSCRIPT_NO_SIGNALS" "$TRANSCRIPT_WITH_SIGNAL"
+rm -rf "$C03DIR"
+
+# =========================================================================
+# Section: C02 — pas-session-start.sh tolerates missing fields (warns)
+# =========================================================================
+
+printf "\n${BOLD}C02. pas-session-start.sh missing-field tolerance${RESET}\n"
+
+# T-C02-1: status.yaml missing instance: → exit 0, warn names instance
+C02DIR=$(mktemp -d)
+mkdir -p "$C02DIR/.pas/workspace/proc/inst-1/feedback"
+printf 'feedback: enabled\n' > "$C02DIR/.pas/config.yaml"
+cat > "$C02DIR/.pas/workspace/proc/inst-1/status.yaml" <<'EOF'
+process: proc
+status: in_progress
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C02DIR\",\"source\":\"startup\",\"session_id\":\"c02test1\"}" \
+  0 "C02-1: missing instance field → exit 0"
+
+assert_stdout_contains "Missing required fields: instance" \
+  "C02-1: stdout warns about missing instance field"
+
+# T-C02-2: status.yaml missing instance AND status — defaults applied
+C02DIR2=$(mktemp -d)
+mkdir -p "$C02DIR2/.pas/workspace/proc/inst-2/feedback"
+printf 'feedback: enabled\n' > "$C02DIR2/.pas/config.yaml"
+cat > "$C02DIR2/.pas/workspace/proc/inst-2/status.yaml" <<'EOF'
+process: proc
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C02DIR2\",\"source\":\"startup\",\"session_id\":\"c02test2\"}" \
+  0 "C02-2: missing instance AND status → exit 0"
+
+assert_stdout_contains "inst-2 (status: unknown)" \
+  "C02-2: INSTANCE defaults to dirname, status to 'unknown'"
+
+# T-C02-3: complete status.yaml — no warning
+C02DIR3=$(mktemp -d)
+mkdir -p "$C02DIR3/.pas/workspace/proc/inst-3/feedback"
+printf 'feedback: enabled\n' > "$C02DIR3/.pas/config.yaml"
+cat > "$C02DIR3/.pas/workspace/proc/inst-3/status.yaml" <<'EOF'
+process: proc
+instance: inst-3
+status: in_progress
+
+phases:
+  discovery:
+    status: pending
+EOF
+
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$C02DIR3\",\"source\":\"startup\",\"session_id\":\"c02test3\"}" \
+  0 "C02-3: complete status.yaml → exit 0"
+
+if grep -q "Missing required fields" /tmp/test-hook-stdout 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C02-3: complete status.yaml should NOT trigger warning")
+  printf "  ${RED}FAIL${RESET} C02-3: warning printed for complete status.yaml\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C02-3: no warning for complete status.yaml\n"
+fi
+
+rm -rf "$C02DIR" "$C02DIR2" "$C02DIR3"
+
+# =========================================================================
+# Section: C01 — lib/guards.sh defensive defaults + resolve_pas_project_root
+# =========================================================================
+
+printf "\n${BOLD}C01. lib/guards.sh foundation${RESET}\n"
+
+# T-C01-1: CLAUDE_PLUGIN_ROOT defensive default fires when unset
+# Run a fresh bash with the var unset; sourcing guards.sh must populate it.
+RESULT=$(env -u CLAUDE_PLUGIN_ROOT bash -c "source '$HOOKS_DIR/lib/guards.sh' && echo \"\$CLAUDE_PLUGIN_ROOT\"")
+if [ -n "$RESULT" ] && [ -d "$RESULT" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-1: CLAUDE_PLUGIN_ROOT defensive default sets a real path\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C01-1: defensive default failed (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C01-1: CLAUDE_PLUGIN_ROOT default (got: '%s')\n" "$RESULT"
+fi
+
+# T-C01-2: resolve_pas_project_root from cwd containing .pas/config.yaml
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_pas_project_root '$TESTDIR'")
+if [ "$RESULT" = "$TESTDIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-2: resolve_pas_project_root from PAS-root cwd\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C01-2: expected '$TESTDIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C01-2: resolve from PAS-root cwd (got: '%s')\n" "$RESULT"
+fi
+
+# T-C01-3: walk up from a deep subdirectory
+mkdir -p "$TESTDIR/sub/deeper/nest"
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_pas_project_root '$TESTDIR/sub/deeper/nest'")
+if [ "$RESULT" = "$TESTDIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-3: resolve walks up from deep subdirectory\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C01-3: expected '$TESTDIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C01-3: walk up from subdir (got: '%s')\n" "$RESULT"
+fi
+
+# T-C01-4: git worktree fallback — worktree dir has no .pas/, main dir does
+WTBASE=$(mktemp -d)
+( cd "$WTBASE" && git init -q && git -c user.email=t@t -c user.name=t commit --allow-empty -m init -q ) >/dev/null 2>&1
+mkdir -p "$WTBASE/.pas"
+printf 'feedback: enabled\n' > "$WTBASE/.pas/config.yaml"
+( cd "$WTBASE" && git worktree add -q "$WTBASE/.wt" -b c01-test-branch ) >/dev/null 2>&1
+if [ -d "$WTBASE/.wt" ]; then
+  RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_pas_project_root '$WTBASE/.wt'")
+  # Resolve symlinks for comparison (macOS/Linux tmpdir realpath quirks)
+  EXPECTED_REAL=$(cd "$WTBASE" && pwd -P)
+  RESULT_REAL=$(cd "$RESULT" 2>/dev/null && pwd -P || echo "$RESULT")
+  if [ "$RESULT_REAL" = "$EXPECTED_REAL" ]; then
+    PASS=$((PASS + 1))
+    printf "  ${GREEN}PASS${RESET} C01-4: resolve falls back to git --show-toplevel from worktree\n"
+  else
+    FAIL=$((FAIL + 1))
+    ERRORS+=("C01-4: expected '$EXPECTED_REAL', got '$RESULT_REAL'")
+    printf "  ${RED}FAIL${RESET} C01-4: worktree fallback (got: '%s')\n" "$RESULT_REAL"
+  fi
+else
+  # Worktree creation failed — skip but don't fail the suite
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-4: worktree fixture unavailable (skipped, but no failure)\n"
+fi
+rm -rf "$WTBASE"
+
+# T-C01-5: from /tmp (non-PAS, non-git) returns non-zero
+if bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_pas_project_root /tmp" >/dev/null 2>&1; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C01-5: expected non-zero exit when no PAS root resolvable")
+  printf "  ${RED}FAIL${RESET} C01-5: should return non-zero from /tmp\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C01-5: returns non-zero when no PAS root resolvable\n"
+fi
 
 # =========================================================================
 # Summary

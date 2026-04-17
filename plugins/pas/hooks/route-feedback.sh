@@ -65,7 +65,7 @@ route_signal() {
 route_framework_signal() {
   local signal_block="$1"
   local signal_id="$2"
-  local log_dir="$CWD/$PAS_ROOT/feedback"
+  local log_dir="${PAS_PROJECT_ROOT:-$CWD}/$PAS_ROOT/feedback"
   mkdir -p "$log_dir"
 
   # Guard: only route signals marked for GitHub issue creation
@@ -73,6 +73,29 @@ route_framework_signal() {
     echo "[$(date -Iseconds)] INFO: Framework signal ${signal_id} not marked 'Route: github-issue', skipping" >> "$log_dir/framework-routing.log" 2>/dev/null || true
     return 0
   fi
+
+  # Resolve target repo from config — must NEVER fall through to the host
+  # project's repo. The plugin's pas-config.yaml ships with
+  # framework_signal_repo set; an empty value is a hard refusal so we never
+  # silently file framework signals on a downstream consumer's product repo.
+  local target_repo=""
+  if [ -n "${PAS_CONFIG:-}" ] && [ -f "$PAS_CONFIG" ]; then
+    target_repo=$(grep '^framework_signal_repo:' "$PAS_CONFIG" 2>/dev/null | head -1 | awk '{print $2}')
+  fi
+  # Fall back to the framework default (read from the plugin install dir,
+  # never from $CWD) when the project config doesn't carry the field.
+  if [ -z "$target_repo" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$CLAUDE_PLUGIN_ROOT/pas-config.yaml" ]; then
+    target_repo=$(grep '^framework_signal_repo:' "$CLAUDE_PLUGIN_ROOT/pas-config.yaml" 2>/dev/null | head -1 | awk '{print $2}')
+  fi
+
+  if [ -z "$target_repo" ]; then
+    echo "[$(date -Iseconds)] REFUSED: framework_signal_repo unresolved; will NOT file ${signal_id} (refusing to default to host project repo)" >> "$log_dir/framework-routing.log" 2>/dev/null || true
+    return 0
+  fi
+
+  # Audit: record the resolved repo BEFORE the gh call so any future
+  # mis-routing regression is visible in the log.
+  echo "[$(date -Iseconds)] INFO: Filing ${signal_id} on repo ${target_repo}" >> "$log_dir/framework-routing.log" 2>/dev/null || true
 
   # Guard: check gh CLI is available and authenticated
   if ! command -v gh >/dev/null 2>&1; then
@@ -96,12 +119,12 @@ route_framework_signal() {
   summary=$(echo "$summary" | cut -c1-80)
 
   # File as GitHub issue
-  if gh issue create --repo ZoranSpirkovski/PAS \
+  if gh issue create --repo "$target_repo" \
     --title "[Feedback] ${signal_id}: ${summary}" \
     --body "$signal_block" >/dev/null 2>&1; then
-    echo "[$(date -Iseconds)] OK: Filed ${signal_id} as GitHub issue" >> "$log_dir/framework-routing.log" 2>/dev/null || true
+    echo "[$(date -Iseconds)] OK: Filed ${signal_id} as GitHub issue on ${target_repo}" >> "$log_dir/framework-routing.log" 2>/dev/null || true
   else
-    echo "[$(date -Iseconds)] ERROR: Failed to file ${signal_id} as GitHub issue" >> "$log_dir/framework-routing.log" 2>/dev/null || true
+    echo "[$(date -Iseconds)] ERROR: Failed to file ${signal_id} as GitHub issue on ${target_repo}" >> "$log_dir/framework-routing.log" 2>/dev/null || true
   fi
 }
 

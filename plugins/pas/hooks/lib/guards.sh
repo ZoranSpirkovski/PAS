@@ -5,6 +5,51 @@
 # All PAS project-level artifacts live under this directory.
 PAS_ROOT=".pas"
 
+# Defensive default for CLAUDE_PLUGIN_ROOT — the harness substitutes this in
+# hooks.json command paths but does not always export it as an env var.
+# Falls back to two-levels-up from this lib file (i.e. plugins/pas/).
+: "${CLAUDE_PLUGIN_ROOT:=$(cd "${BASH_SOURCE[0]%/*}/../.." 2>/dev/null && pwd || echo "")}"
+export CLAUDE_PLUGIN_ROOT
+
+# Resolve the PAS project root by walking up from a candidate cwd until
+# .pas/config.yaml is found, then falling back to git's worktree root.
+# Echoes the resolved root on stdout; returns non-zero if nothing matches.
+resolve_pas_project_root() {
+  local candidate="${1:-${CWD:-${CLAUDE_PROJECT_DIR:-$(pwd)}}}"
+
+  # Walk up from candidate
+  local dir="$candidate"
+  while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+    if [ -f "$dir/$PAS_ROOT/config.yaml" ]; then
+      echo "$dir"
+      return 0
+    fi
+    dir=$(dirname "$dir")
+  done
+
+  # Worktree fallback: when running inside a worktree, .pas/ may live at the
+  # main worktree root. --show-toplevel returns the worktree's working tree,
+  # not the shared .git dir (which would be wrong for hosting .pas/).
+  if command -v git >/dev/null 2>&1; then
+    local worktree_root
+    worktree_root=$(cd "$candidate" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) || return 1
+    if [ -n "$worktree_root" ] && [ -f "$worktree_root/$PAS_ROOT/config.yaml" ]; then
+      echo "$worktree_root"
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+# Crash-resistant `grep | head | awk` field extractor for status.yaml.
+# Returns empty string on missing field instead of failing under set -e/pipefail.
+safe_grep_field() {
+  local file="$1"
+  local key="$2"
+  grep "^${key}:" "$file" 2>/dev/null | head -1 | awk '{print $2}' || true
+}
+
 # Parse JSON input from stdin. Sets CWD and exposes raw INPUT.
 # Returns 1 if jq is missing or JSON is invalid.
 guard_parse_input() {
@@ -41,11 +86,16 @@ migrate_to_pas_dir() {
 }
 
 # Check that this is a PAS project (.pas/config.yaml exists).
-# Auto-migrates old-style layout if detected.
+# Auto-migrates old-style layout if detected. Also handles worktrees and
+# subdirectory invocations by walking up and falling back to git-worktree-root.
+# Sets PAS_PROJECT_ROOT to the resolved project root (may differ from CWD).
 # Returns 1 if not a PAS project.
 guard_pas_project() {
+  # Fast path: $CWD itself is a PAS root
   PAS_CONFIG="$CWD/$PAS_ROOT/config.yaml"
   if [ -f "$PAS_CONFIG" ]; then
+    PAS_PROJECT_ROOT="$CWD"
+    export PAS_PROJECT_ROOT
     return 0
   fi
 
@@ -54,8 +104,20 @@ guard_pas_project() {
     migrate_to_pas_dir
     PAS_CONFIG="$CWD/$PAS_ROOT/config.yaml"
     if [ -f "$PAS_CONFIG" ]; then
+      PAS_PROJECT_ROOT="$CWD"
+      export PAS_PROJECT_ROOT
       return 0
     fi
+  fi
+
+  # Worktree / subdirectory fallback: walk up and try git-worktree resolver.
+  local resolved
+  resolved=$(resolve_pas_project_root "$CWD") || return 1
+  if [ -n "$resolved" ] && [ -f "$resolved/$PAS_ROOT/config.yaml" ]; then
+    PAS_PROJECT_ROOT="$resolved"
+    PAS_CONFIG="$resolved/$PAS_ROOT/config.yaml"
+    export PAS_PROJECT_ROOT
+    return 0
   fi
 
   return 1
@@ -72,19 +134,96 @@ guard_feedback_enabled() {
   fi
 }
 
+# Check that the given agent type is one declared in the active process's
+# status.yaml (i.e. a PAS-spawned agent, not a generic Explore/Plan/etc).
+# Args:
+#   $1 — agent_type from the SubagentStop payload (jq '.agent_type // empty')
+#   $2 — script_dir (passed through to guard_active_workspace)
+# Returns 0 when the agent is in the active PAS process's allowlist,
+# non-zero otherwise (caller should `exit 0` to silently skip).
+#
+# SAFE-FAIL: empty/unset agent_type → return 0 (treat as PAS agent). This
+# preserves existing over-blocking behavior on CC versions that don't
+# populate the field, instead of silently weakening the gate.
+guard_agent_in_active_process() {
+  local agent_type="$1"
+  local script_dir="$2"
+
+  # Empty/unknown → safe-fail to "treat as PAS agent" (over-block direction)
+  if [ -z "$agent_type" ] || [ "$agent_type" = "unknown" ] || [ "$agent_type" = "null" ]; then
+    return 0
+  fi
+
+  # If we can't resolve a workspace, can't check the allowlist — safe-fail
+  # to over-block; caller's guard_active_workspace will exit 0 naturally
+  # if there's truly no workspace.
+  if ! guard_active_workspace "$script_dir" 2>/dev/null; then
+    return 0
+  fi
+
+  local pas_agents
+  # status.yaml shape: `agent: name` (scalar) OR `agent: [a, b, c]` (list).
+  # Strip brackets/commas; emit every name on its own line.
+  pas_agents=$(grep '^[[:space:]]*agent:' "$ACTIVE_STATUS" 2>/dev/null \
+    | sed 's/^[[:space:]]*agent:[[:space:]]*//' \
+    | tr -d '[]' \
+    | tr ',' '\n' \
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+    | grep -v '^$' \
+    | sort -u)
+
+  # Empty allowlist → safe-fail (something's wrong with status.yaml)
+  if [ -z "$pas_agents" ]; then
+    return 0
+  fi
+
+  # Orchestrator is always a PAS agent even if not declared in any phase
+  if [ "$agent_type" = "orchestrator" ]; then
+    return 0
+  fi
+
+  if echo "$pas_agents" | grep -qx "$agent_type"; then
+    return 0
+  fi
+
+  return 1
+}
+
 # Find active workspace using the shared workspace resolution function.
 # Sets ACTIVE_STATUS, ACTIVE_WORKSPACE, FEEDBACK_DIR.
+# Uses PAS_PROJECT_ROOT (set by guard_pas_project) so worktree-cwd sessions
+# resolve to the main checkout's .pas/workspace/.
+# When INPUT carries a session_id, the resolver prefers the workspace whose
+# current_session: matches — this closes the multi-instance picking-the-
+# wrong-workspace bug (#52).
 # Returns 1 if no workspace found.
 guard_active_workspace() {
   local script_dir="$1"
   source "$script_dir/lib/workspace.sh"
 
-  WORKSPACE_DIR="$CWD/$PAS_ROOT/workspace"
+  # Ensure PAS_PROJECT_ROOT is resolved (may be unset if caller skipped guard_pas_project).
+  if [ -z "${PAS_PROJECT_ROOT:-}" ]; then
+    guard_pas_project || return 1
+  fi
+
+  WORKSPACE_DIR="$PAS_PROJECT_ROOT/$PAS_ROOT/workspace"
   if [ ! -d "$WORKSPACE_DIR" ]; then
     return 1
   fi
 
-  ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR") || return 1
+  # Derive short session id from INPUT (if present); pass to the resolver
+  # so multi-instance resolution picks the workspace this session is
+  # working on, not the most-recently-touched sibling.
+  local session_short=""
+  if [ -n "${INPUT:-}" ]; then
+    local full_session
+    full_session=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+    if [ -n "$full_session" ]; then
+      session_short=$(echo "$full_session" | cut -c1-8)
+    fi
+  fi
+
+  ACTIVE_STATUS=$(find_active_workspace_status "$WORKSPACE_DIR" "$session_short") || return 1
   ACTIVE_WORKSPACE=$(dirname "$ACTIVE_STATUS")
   FEEDBACK_DIR="$ACTIVE_WORKSPACE/feedback"
 }
