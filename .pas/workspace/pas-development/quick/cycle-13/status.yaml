@@ -25,3 +25,10 @@ phases:
     status: completed
     agent: orchestrator
     notes: "PR #28 merged, main synced back into dev, version 1.3.2"
+current_session: 2eacc882
+
+sessions:
+  - id: 2eacc882
+    started_at: 2026-04-16T19:54:31+02:00
+    completed_at: ~
+    feedback_collected: false
