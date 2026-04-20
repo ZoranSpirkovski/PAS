@@ -149,3 +149,11 @@ If a session is interrupted (context limits, user leaves, crash):
 5. Re-spawn team members as needed (they don't persist across sessions)
 
 The orchestrator is responsible for completing the process to a high degree of quality regardless of how many sessions it takes.
+
+## Doctrines
+
+Cross-cycle operating rules that inform planning and validation — see `${CLAUDE_PLUGIN_ROOT}/library/orchestration/doctrines.md`. Relevant doctrines include:
+
+- **N/N+1 Protocol** — hook-substrate changes ship in cycle N, validate from a fresh session in cycle N+1.
+- **Dogfooding Hazard Awareness** — sequence substrate-mutating commits late; don't re-exercise modified paths mid-cycle.
+- **Data Verification Norm** — every external/quantitative claim must be backed by a command, URL, or file reference.
