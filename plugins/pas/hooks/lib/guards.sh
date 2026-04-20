@@ -56,6 +56,25 @@ resolve_claude_plugin_root() {
   return 2
 }
 
+# Resolve the marketplace root by walking up from a candidate cwd until
+# .claude-plugin/marketplace.json is found. Echoes the resolved root on
+# stdout; returns non-zero if no marketplace is found.
+#
+# Used by /pas skill to enforce the Marketplace Gate: PAS-the-skill only
+# operates inside a user-controlled marketplace repository.
+resolve_marketplace_root() {
+  local candidate="${1:-$(pwd)}"
+  local dir="$candidate"
+  while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+    if [ -f "$dir/.claude-plugin/marketplace.json" ]; then
+      echo "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
 # Resolve the PAS project root by walking up from a candidate cwd until
 # .pas/config.yaml is found, then falling back to git's worktree root.
 # Echoes the resolved root on stdout; returns non-zero if nothing matches.

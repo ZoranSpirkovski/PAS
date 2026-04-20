@@ -1527,6 +1527,47 @@ fi
 rm -rf "$ISOLATED" "$FAKE_HOME"
 
 # =========================================================================
+# C11: resolve_marketplace_root (Marketplace Gate helper)
+# =========================================================================
+
+# T-C11-1: cwd inside marketplace tree → echoes marketplace root
+C11DIR=$(mktemp -d)
+mkdir -p "$C11DIR/.claude-plugin" "$C11DIR/sub/deep"
+printf '{"name":"test-market"}' > "$C11DIR/.claude-plugin/marketplace.json"
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_marketplace_root '$C11DIR/sub/deep'")
+if [ "$RESULT" = "$C11DIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C11-1: walks up from subdir to marketplace root\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C11-1: expected '$C11DIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C11-1: walk-up (got: '%s')\n" "$RESULT"
+fi
+
+# T-C11-2: cwd IS the marketplace root → echoes cwd
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_marketplace_root '$C11DIR'")
+if [ "$RESULT" = "$C11DIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C11-2: cwd IS marketplace → echoes cwd\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C11-2: expected '$C11DIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C11-2: cwd-root (got: '%s')\n" "$RESULT"
+fi
+
+# T-C11-3: cwd outside any marketplace → non-zero exit
+C11DIR_OUT=$(mktemp -d)
+if bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_marketplace_root '$C11DIR_OUT'" >/dev/null 2>&1; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C11-3: expected non-zero exit outside any marketplace")
+  printf "  ${RED}FAIL${RESET} C11-3: should return non-zero\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C11-3: non-zero exit outside marketplace\n"
+fi
+rm -rf "$C11DIR" "$C11DIR_OUT"
+
+# =========================================================================
 # Summary
 # =========================================================================
 
