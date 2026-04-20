@@ -1568,6 +1568,36 @@ fi
 rm -rf "$C11DIR" "$C11DIR_OUT"
 
 # =========================================================================
+# C13: workspace-only PAS project detection (P7 consumer shrink)
+# =========================================================================
+
+# T-C13-1: a project with only .pas/workspace/ (no config.yaml) is valid
+C13DIR=$(mktemp -d)
+mkdir -p "$C13DIR/.pas/workspace"
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && CWD='$C13DIR' guard_pas_project && echo \"OK: \$PAS_PROJECT_ROOT\"")
+if [ "$RESULT" = "OK: $C13DIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C13-1: workspace-only project recognized (no config.yaml)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C13-1: expected 'OK: $C13DIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C13-1: workspace-only (got: '%s')\n" "$RESULT"
+fi
+
+# T-C13-2: guard_feedback_enabled falls back to plugin pas-config.yaml
+# Use real plugin root (has feedback: enabled in pas-config.yaml)
+PLUGIN_ROOT=$(cd "$HOOKS_DIR/.." && pwd)
+if bash -c "source '$HOOKS_DIR/lib/guards.sh' && CWD='$C13DIR' CLAUDE_PLUGIN_ROOT='$PLUGIN_ROOT' guard_feedback_enabled" 2>/dev/null; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C13-2: feedback-enabled falls back to plugin default\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C13-2: guard_feedback_enabled failed with workspace-only + plugin default")
+  printf "  ${RED}FAIL${RESET} C13-2: plugin fallback failed\n"
+fi
+rm -rf "$C13DIR"
+
+# =========================================================================
 # Summary
 # =========================================================================
 

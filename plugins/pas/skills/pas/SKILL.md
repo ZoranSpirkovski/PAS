@@ -58,15 +58,13 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 - Never assume you understand what the user wants — ask clarifying questions until they confirm.
 - No PAS jargon unless the user uses it first. Speak in terms of goals, tasks, and steps.
 
-## First-Run Detection
+## First-Run Detection (consumer)
 
-If `.pas/config.yaml` does not exist at the project root, run self-setup:
+Under the marketplace-authoritative model, a **consumer project** holds only `.pas/workspace/` — nothing else. Hooks and skills create `.pas/workspace/` lazily on first write (no eager `.pas/config.yaml` creation).
 
-1. Create `.pas/config.yaml` with defaults: `feedback: enabled`, `feedback_disabled_at: ~`
-2. Create `.pas/workspace/` directory
-3. Confirm to the user: "PAS initialized — `.pas/` directory created with config and workspace."
+Feedback enabled/disabled defaults to the plugin-level setting at `${CLAUDE_PLUGIN_ROOT}/pas-config.yaml`. To override per-project, drop a workspace-scoped config with `feedback: disabled` (location TBD in a future cycle; legacy consumer `.pas/config.yaml` is still honored for backward compatibility).
 
-If old-style `pas-config.yaml` exists at root but `.pas/` does not, auto-migrate: move config, library, workspace, processes, and feedback into `.pas/`.
+Legacy projects: if old-style `pas-config.yaml` exists at root, auto-migrate moves it into `.pas/config.yaml` (unchanged from earlier behavior). Consumer-side `.pas/config.yaml` is **deprecated as of PAS 1.4.0** and will be removed in a future cycle after downstream consumers upgrade.
 
 Hooks (`check-self-eval.sh`, `route-feedback.sh`) are loaded automatically by Claude Code from the plugin's `hooks/hooks.json` — no project-level configuration needed.
 

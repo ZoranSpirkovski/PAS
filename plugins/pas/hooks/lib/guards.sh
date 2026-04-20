@@ -75,16 +75,21 @@ resolve_marketplace_root() {
   return 1
 }
 
-# Resolve the PAS project root by walking up from a candidate cwd until
-# .pas/config.yaml is found, then falling back to git's worktree root.
+# Resolve the PAS project root by walking up from a candidate cwd until a
+# .pas/ marker is found (either config.yaml — legacy — or workspace/ —
+# marketplace-authoritative). Falls back to git's worktree root.
 # Echoes the resolved root on stdout; returns non-zero if nothing matches.
 resolve_pas_project_root() {
   local candidate="${1:-${CWD:-${CLAUDE_PROJECT_DIR:-$(pwd)}}}"
 
+  _pas_root_has_marker() {
+    [ -f "$1/$PAS_ROOT/config.yaml" ] || [ -d "$1/$PAS_ROOT/workspace" ]
+  }
+
   # Walk up from candidate
   local dir="$candidate"
   while [ -n "$dir" ] && [ "$dir" != "/" ]; do
-    if [ -f "$dir/$PAS_ROOT/config.yaml" ]; then
+    if _pas_root_has_marker "$dir"; then
       echo "$dir"
       return 0
     fi
@@ -97,7 +102,7 @@ resolve_pas_project_root() {
   if command -v git >/dev/null 2>&1; then
     local worktree_root
     worktree_root=$(cd "$candidate" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) || return 1
-    if [ -n "$worktree_root" ] && [ -f "$worktree_root/$PAS_ROOT/config.yaml" ]; then
+    if [ -n "$worktree_root" ] && _pas_root_has_marker "$worktree_root"; then
       echo "$worktree_root"
       return 0
     fi
@@ -149,21 +154,23 @@ migrate_to_pas_dir() {
   done
 }
 
-# Check that this is a PAS project (.pas/config.yaml exists).
-# Auto-migrates old-style layout if detected. Also handles worktrees and
-# subdirectory invocations by walking up and falling back to git-worktree-root.
+# Check that this is a PAS project — under the marketplace-authoritative model
+# a project is valid if EITHER .pas/config.yaml (legacy) OR .pas/workspace/
+# (consumer-only) exists. Auto-migrates old-style root layout if detected.
+# Handles worktrees and subdirectory invocations by walking up.
 # Sets PAS_PROJECT_ROOT to the resolved project root (may differ from CWD).
+# Sets PAS_CONFIG to config path (may not exist — callers check).
 # Returns 1 if not a PAS project.
 guard_pas_project() {
-  # Fast path: $CWD itself is a PAS root
+  # Fast path: $CWD has either config.yaml or workspace/
   PAS_CONFIG="$CWD/$PAS_ROOT/config.yaml"
-  if [ -f "$PAS_CONFIG" ]; then
+  if [ -f "$PAS_CONFIG" ] || [ -d "$CWD/$PAS_ROOT/workspace" ]; then
     PAS_PROJECT_ROOT="$CWD"
     export PAS_PROJECT_ROOT
     return 0
   fi
 
-  # Backward compatibility: migrate old-style root layout
+  # Backward compatibility: migrate old-style root layout (pas-config.yaml at root)
   if [ -f "$CWD/pas-config.yaml" ]; then
     migrate_to_pas_dir
     PAS_CONFIG="$CWD/$PAS_ROOT/config.yaml"
@@ -177,7 +184,7 @@ guard_pas_project() {
   # Worktree / subdirectory fallback: walk up and try git-worktree resolver.
   local resolved
   resolved=$(resolve_pas_project_root "$CWD") || return 1
-  if [ -n "$resolved" ] && [ -f "$resolved/$PAS_ROOT/config.yaml" ]; then
+  if [ -n "$resolved" ] && { [ -f "$resolved/$PAS_ROOT/config.yaml" ] || [ -d "$resolved/$PAS_ROOT/workspace" ]; }; then
     PAS_PROJECT_ROOT="$resolved"
     PAS_CONFIG="$resolved/$PAS_ROOT/config.yaml"
     export PAS_PROJECT_ROOT
@@ -187,12 +194,22 @@ guard_pas_project() {
   return 1
 }
 
-# Check that feedback is enabled in config.yaml.
-# Returns 1 if feedback is not enabled.
+# Check that feedback is enabled.
+# Resolution order: consumer .pas/config.yaml (if present) → plugin default
+# from ${CLAUDE_PLUGIN_ROOT}/pas-config.yaml. Returns 1 if feedback is disabled.
 guard_feedback_enabled() {
   guard_pas_project || return 1
 
-  FEEDBACK_STATUS=$(grep -o 'feedback:[[:space:]]*\w*' "$PAS_CONFIG" | head -1 | awk '{print $NF}')
+  FEEDBACK_STATUS=""
+  if [ -f "$PAS_CONFIG" ]; then
+    FEEDBACK_STATUS=$(grep -o 'feedback:[[:space:]]*\w*' "$PAS_CONFIG" | head -1 | awk '{print $NF}')
+  fi
+
+  # Fall back to plugin-level default (marketplace-authoritative model)
+  if [ -z "$FEEDBACK_STATUS" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/pas-config.yaml" ]; then
+    FEEDBACK_STATUS=$(grep -o 'feedback:[[:space:]]*\w*' "${CLAUDE_PLUGIN_ROOT}/pas-config.yaml" | head -1 | awk '{print $NF}')
+  fi
+
   if [ "$FEEDBACK_STATUS" != "enabled" ]; then
     return 1
   fi
