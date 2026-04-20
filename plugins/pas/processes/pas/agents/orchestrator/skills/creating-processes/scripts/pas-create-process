@@ -10,6 +10,8 @@ ORCHESTRATION=""
 DESCRIPTION=""
 SEQUENTIAL="false"
 BASE_DIR=""
+PLUGIN=""
+FORK=false
 FORCE=false
 declare -a PHASES=()
 declare -a INPUTS=()
@@ -28,10 +30,19 @@ Required:
   --input SPEC          Input spec as "name:description" (repeatable)
 
 Optional:
-  --base-dir DIR        Base directory for output (default: current directory)
+  --base-dir DIR        Explicit base dir (default: auto-resolves the marketplace cwd is inside)
+  --plugin NAME         Plugin name within the marketplace (required if marketplace has >1 plugin)
+  --fork                Write into consumer-side .pas/processes/ instead of the marketplace
+                        (for bespoke per-project processes)
   --description TEXT    Prose description for process.md body
   --sequential BOOL     Force linear execution (default: false)
   --force               Overwrite existing directory
+
+Target resolution:
+  Default:  <marketplace-root>/plugins/<plugin>/processes/<NAME>/
+            (cwd must be inside a marketplace — detected via .claude-plugin/marketplace.json)
+  --fork:   <cwd>/.pas/processes/<NAME>/  (consumer-local, legacy-style)
+  --base-dir explicitly overrides both.
 USAGE
   exit 1
 }
@@ -45,6 +56,8 @@ while [[ $# -gt 0 ]]; do
     --phase) PHASES+=("$2"); shift 2 ;;
     --input) INPUTS+=("$2"); shift 2 ;;
     --base-dir) BASE_DIR="$2"; shift 2 ;;
+    --plugin) PLUGIN="$2"; shift 2 ;;
+    --fork) FORK=true; shift ;;
     --description) DESCRIPTION="$2"; shift 2 ;;
     --sequential) SEQUENTIAL="$2"; shift 2 ;;
     --force) FORCE=true; shift ;;
@@ -101,7 +114,59 @@ for input in "${INPUTS[@]}"; do
 done
 
 # Build target path
-TARGET="${BASE_DIR:+${BASE_DIR}/}.pas/processes/${NAME}"
+# Resolution order:
+#   1. Explicit --base-dir → ${BASE_DIR}/.pas/processes/${NAME} (legacy layout)
+#   2. --fork → <cwd>/.pas/processes/${NAME} (consumer-local)
+#   3. Default → resolve marketplace root + plugin, write to marketplace tree.
+if [[ -n "$BASE_DIR" ]]; then
+  TARGET="${BASE_DIR}/.pas/processes/${NAME}"
+  LAUNCHER_DIR="${BASE_DIR}/.claude/skills/${NAME}"
+elif [[ "$FORK" == true ]]; then
+  TARGET="$(pwd)/.pas/processes/${NAME}"
+  LAUNCHER_DIR="$(pwd)/.claude/skills/${NAME}"
+else
+  # Resolve marketplace root. Search guards.sh relative to this script, or on
+  # the installed plugin path, then walk up from cwd looking for marketplace.json.
+  SCRIPT_REAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  GUARDS_SH=""
+  for candidate in \
+      "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib/guards.sh" \
+      "${SCRIPT_REAL_DIR}/../../../../../../hooks/lib/guards.sh"; do
+    if [[ -n "$candidate" && -f "$candidate" ]]; then
+      GUARDS_SH="$candidate"
+      break
+    fi
+  done
+  if [[ -z "$GUARDS_SH" ]]; then
+    echo "Error: cannot locate guards.sh to resolve marketplace root." >&2
+    echo "  Pass --base-dir explicitly or use --fork for consumer-local." >&2
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  source "$GUARDS_SH"
+  MARKETPLACE_ROOT=$(resolve_marketplace_root "$(pwd)") || {
+    echo "Error: current directory is not inside a marketplace (no .claude-plugin/marketplace.json found walking up)." >&2
+    echo "  Options: cd into a marketplace, use --fork for consumer-local, or --base-dir for explicit path." >&2
+    exit 1
+  }
+  # If --plugin not provided, infer from single-plugin marketplace.
+  if [[ -z "$PLUGIN" ]]; then
+    PLUGIN_DIRS=$(ls -d "$MARKETPLACE_ROOT/plugins"/*/ 2>/dev/null | wc -l)
+    if [[ "$PLUGIN_DIRS" -eq 1 ]]; then
+      PLUGIN=$(basename "$(ls -d "$MARKETPLACE_ROOT/plugins"/*/ 2>/dev/null | head -1)")
+    else
+      echo "Error: marketplace at $MARKETPLACE_ROOT has $PLUGIN_DIRS plugins; specify --plugin <name>." >&2
+      exit 1
+    fi
+  fi
+  # Validate plugin exists in marketplace
+  if [[ ! -d "$MARKETPLACE_ROOT/plugins/$PLUGIN" ]]; then
+    echo "Error: plugin '$PLUGIN' does not exist under $MARKETPLACE_ROOT/plugins/" >&2
+    exit 1
+  fi
+  TARGET="$MARKETPLACE_ROOT/plugins/$PLUGIN/processes/${NAME}"
+  LAUNCHER_DIR=""  # No launcher in marketplace mode — skills ship via plugin
+fi
 
 # Check directory conflict
 if [[ -d "$TARGET" && "$FORCE" != true ]]; then
@@ -291,10 +356,12 @@ touch "${TARGET}/feedback/backlog/.gitkeep"
 echo "  Created ${TARGET}/feedback/backlog/.gitkeep"
 FILE_COUNT=$((FILE_COUNT + 1))
 
-# Generate thin launcher
-LAUNCHER_DIR="${BASE_DIR:+${BASE_DIR}/}.claude/skills/${NAME}"
-mkdir -p "${LAUNCHER_DIR}"
-cat > "${LAUNCHER_DIR}/SKILL.md" <<EOF
+# Generate thin launcher (only for --fork or --base-dir modes; marketplace
+# mode ships the process via the plugin itself — no consumer-side launcher).
+if [[ -n "$LAUNCHER_DIR" ]]; then
+  mkdir -p "${LAUNCHER_DIR}"
+  # In fork / legacy mode, the launcher points at the consumer .pas/processes/ tree.
+  cat > "${LAUNCHER_DIR}/SKILL.md" <<EOF
 ---
 name: ${NAME}
 description: ${GOAL}
@@ -305,8 +372,20 @@ Read \`\${CLAUDE_PLUGIN_ROOT}/library/orchestration/lifecycle.md\` for shared li
 Read the orchestration pattern from \`\${CLAUDE_PLUGIN_ROOT}/library/orchestration/\` as specified in the process.
 Execute.
 EOF
-echo "  Created ${LAUNCHER_DIR}/SKILL.md"
-FILE_COUNT=$((FILE_COUNT + 1))
+  echo "  Created ${LAUNCHER_DIR}/SKILL.md"
+  FILE_COUNT=$((FILE_COUNT + 1))
+fi
 
 echo ""
-echo "Created process '${NAME}' with ${FILE_COUNT} files in ${TARGET}/"
+if [[ -n "${PLUGIN:-}" && -z "$BASE_DIR" && "$FORK" != true ]]; then
+  echo "Created process '${NAME}' with ${FILE_COUNT} files in ${TARGET}/"
+  echo ""
+  echo "This process lives in plugin '${PLUGIN}' in the marketplace at:"
+  echo "  ${MARKETPLACE_ROOT}"
+  echo ""
+  echo "After committing + pushing the marketplace, consumers will invoke:"
+  echo "  /${NAME}"
+  echo "and Claude Code will resolve the process from \${CLAUDE_PLUGIN_ROOT}/processes/${NAME}/"
+else
+  echo "Created process '${NAME}' with ${FILE_COUNT} files in ${TARGET}/"
+fi
