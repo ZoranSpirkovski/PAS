@@ -1235,9 +1235,12 @@ Degraded: test signal that should NOT be filed
 Priority: LOW
 EOF
 
-# Run with CLAUDE_PLUGIN_ROOT pointed at an empty fake plugin so fallback
-# also returns nothing — the "must refuse" path.
+# Run with CLAUDE_PLUGIN_ROOT pointed at a minimally-valid fake plugin whose
+# pas-config.yaml is absent/empty — the "must refuse" path. The hardened
+# resolver requires .claude-plugin/plugin.json + hooks/ to accept the path.
 FAKE_PLUGIN=$(mktemp -d)
+mkdir -p "$FAKE_PLUGIN/.claude-plugin" "$FAKE_PLUGIN/hooks"
+printf '{"name":"fake-for-c07-2"}' > "$FAKE_PLUGIN/.claude-plugin/plugin.json"
 RESULT=$(echo "{\"cwd\":\"$C07DIR2\"}" | env CLAUDE_PLUGIN_ROOT="$FAKE_PLUGIN" bash "$HOOKS_DIR/route-feedback.sh" 2>/dev/null; echo "exit=$?")
 if echo "$RESULT" | grep -q 'exit=0'; then
   PASS=$((PASS + 1))
@@ -1393,16 +1396,16 @@ rm -rf "$C02DIR" "$C02DIR2" "$C02DIR3"
 
 printf "\n${BOLD}C01. lib/guards.sh foundation${RESET}\n"
 
-# T-C01-1: CLAUDE_PLUGIN_ROOT defensive default fires when unset
-# Run a fresh bash with the var unset; sourcing guards.sh must populate it.
-RESULT=$(env -u CLAUDE_PLUGIN_ROOT bash -c "source '$HOOKS_DIR/lib/guards.sh' && echo \"\$CLAUDE_PLUGIN_ROOT\"")
-if [ -n "$RESULT" ] && [ -d "$RESULT" ]; then
+# T-C01-1: resolve_claude_plugin_root walk-up populates a valid plugin path when env is unset.
+# Sourcing alone no longer auto-sets the var; the function must be called.
+RESULT=$(env -u CLAUDE_PLUGIN_ROOT bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_claude_plugin_root && echo \"\$CLAUDE_PLUGIN_ROOT\"")
+if [ -n "$RESULT" ] && [ -f "$RESULT/.claude-plugin/plugin.json" ] && [ -d "$RESULT/hooks" ]; then
   PASS=$((PASS + 1))
-  printf "  ${GREEN}PASS${RESET} C01-1: CLAUDE_PLUGIN_ROOT defensive default sets a real path\n"
+  printf "  ${GREEN}PASS${RESET} C01-1: resolve_claude_plugin_root walk-up finds valid plugin\n"
 else
   FAIL=$((FAIL + 1))
-  ERRORS+=("C01-1: defensive default failed (got: '$RESULT')")
-  printf "  ${RED}FAIL${RESET} C01-1: CLAUDE_PLUGIN_ROOT default (got: '%s')\n" "$RESULT"
+  ERRORS+=("C01-1: walk-up failed (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C01-1: walk-up (got: '%s')\n" "$RESULT"
 fi
 
 # T-C01-2: resolve_pas_project_root from cwd containing .pas/config.yaml
@@ -1463,6 +1466,65 @@ else
   PASS=$((PASS + 1))
   printf "  ${GREEN}PASS${RESET} C01-5: returns non-zero when no PAS root resolvable\n"
 fi
+
+# =========================================================================
+# C10: resolve_claude_plugin_root hardened resolver
+# =========================================================================
+
+# T-C10-1: valid env var is accepted (strategy 1)
+RESULT=$(env CLAUDE_PLUGIN_ROOT="$(cd "$HOOKS_DIR/.." && pwd)" bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_claude_plugin_root && echo \"\$CLAUDE_PLUGIN_ROOT\"")
+EXPECTED=$(cd "$HOOKS_DIR/.." && pwd)
+if [ "$RESULT" = "$EXPECTED" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C10-1: valid env var accepted (strategy 1)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C10-1: expected '$EXPECTED', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C10-1: env-var path (got: '%s')\n" "$RESULT"
+fi
+
+# T-C10-2: invalid env var is rejected, walk-up succeeds (strategy 2)
+RESULT=$(env CLAUDE_PLUGIN_ROOT=/nonexistent-plugin-path bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_claude_plugin_root && echo \"\$CLAUDE_PLUGIN_ROOT\"" 2>/dev/null)
+if [ -n "$RESULT" ] && [ -f "$RESULT/.claude-plugin/plugin.json" ] && [ "$RESULT" != "/nonexistent-plugin-path" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C10-2: invalid env rejected, walk-up recovers\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C10-2: expected recovery via walk-up (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C10-2: walk-up recovery (got: '%s')\n" "$RESULT"
+fi
+
+# T-C10-3: env set without hooks/ dir is rejected (validation)
+TMPROOT=$(mktemp -d)
+mkdir -p "$TMPROOT/.claude-plugin"
+printf '{"name":"fake"}' > "$TMPROOT/.claude-plugin/plugin.json"
+# No hooks/ dir — should fail validation on strategy 1 and fall through to walk-up
+RESULT=$(env CLAUDE_PLUGIN_ROOT="$TMPROOT" bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_claude_plugin_root && echo \"\$CLAUDE_PLUGIN_ROOT\"" 2>/dev/null)
+if [ -n "$RESULT" ] && [ "$RESULT" != "$TMPROOT" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C10-3: invalid env (no hooks/) rejected, falls through\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C10-3: expected rejection of env without hooks/ dir (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C10-3: validation (got: '%s')\n" "$RESULT"
+fi
+rm -rf "$TMPROOT"
+
+# T-C10-4: all strategies fail → loud stderr + non-zero exit
+# Copy guards.sh to a location with no plugin ancestors, point HOME away.
+ISOLATED=$(mktemp -d)
+cp "$HOOKS_DIR/lib/guards.sh" "$ISOLATED/guards.sh"
+FAKE_HOME=$(mktemp -d)
+ERR_OUTPUT=$(env -u CLAUDE_PLUGIN_ROOT HOME="$FAKE_HOME" bash -c "source '$ISOLATED/guards.sh' && resolve_claude_plugin_root" 2>&1) && EXIT=$? || EXIT=$?
+if [ "$EXIT" -ne 0 ] && echo "$ERR_OUTPUT" | grep -q "unable to resolve CLAUDE_PLUGIN_ROOT"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C10-4: all strategies fail → non-zero + stderr diagnosis\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C10-4: expected non-zero exit + 'unable to resolve' stderr (exit=$EXIT, output='$ERR_OUTPUT')")
+  printf "  ${RED}FAIL${RESET} C10-4: loud failure missing (exit=%d)\n" "$EXIT"
+fi
+rm -rf "$ISOLATED" "$FAKE_HOME"
 
 # =========================================================================
 # Summary

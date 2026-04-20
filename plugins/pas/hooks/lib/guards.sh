@@ -5,11 +5,56 @@
 # All PAS project-level artifacts live under this directory.
 PAS_ROOT=".pas"
 
-# Defensive default for CLAUDE_PLUGIN_ROOT — the harness substitutes this in
-# hooks.json command paths but does not always export it as an env var.
-# Falls back to two-levels-up from this lib file (i.e. plugins/pas/).
-: "${CLAUDE_PLUGIN_ROOT:=$(cd "${BASH_SOURCE[0]%/*}/../.." 2>/dev/null && pwd || echo "")}"
-export CLAUDE_PLUGIN_ROOT
+# Resolve CLAUDE_PLUGIN_ROOT via validated strategies, fail loudly on miss.
+# Strategies, in order:
+#   1. Env var set by harness — accepted only if path contains .claude-plugin/plugin.json
+#      AND a hooks/ directory (rejects arbitrary directories that happen to be exported).
+#   2. Walk up from this script's own BASH_SOURCE looking for the same markers.
+#   3. Scan ~/.claude/plugins/cache/*/pas/*/ for an install matching the markers.
+#   4. Fail — emit actionable diagnosis to stderr, return 2.
+#
+# Every hook sources this file and calls `resolve_claude_plugin_root || exit 1`
+# at startup, except SessionStart which uses `|| exit 0` to avoid panicking the host.
+resolve_claude_plugin_root() {
+  local candidate
+
+  # Strategy 1: harness-exported env var, validated
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] \
+     && [ -f "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" ] \
+     && [ -d "${CLAUDE_PLUGIN_ROOT}/hooks" ]; then
+    export CLAUDE_PLUGIN_ROOT
+    return 0
+  fi
+
+  # Strategy 2: walk up from this file (lib/guards.sh) looking for plugin markers
+  candidate="$(cd "${BASH_SOURCE[0]%/*}" 2>/dev/null && pwd)" || candidate=""
+  local depth=0
+  while [ -n "$candidate" ] && [ "$candidate" != "/" ] && [ "$depth" -lt 6 ]; do
+    if [ -f "$candidate/.claude-plugin/plugin.json" ] && [ -d "$candidate/hooks" ]; then
+      CLAUDE_PLUGIN_ROOT="$candidate"
+      export CLAUDE_PLUGIN_ROOT
+      return 0
+    fi
+    candidate="$(dirname "$candidate")"
+    depth=$((depth + 1))
+  done
+
+  # Strategy 3: scan install cache for the pas plugin
+  if [ -d "${HOME:-/nonexistent}/.claude/plugins/cache" ]; then
+    local cached
+    for cached in "$HOME/.claude/plugins/cache"/*/pas/*/; do
+      if [ -f "$cached/.claude-plugin/plugin.json" ] && [ -d "$cached/hooks" ]; then
+        CLAUDE_PLUGIN_ROOT="$(cd "$cached" && pwd)"
+        export CLAUDE_PLUGIN_ROOT
+        return 0
+      fi
+    done
+  fi
+
+  # Strategy 4: fail loudly
+  echo "PAS hook: unable to resolve CLAUDE_PLUGIN_ROOT (env unset or invalid; walk-up from ${BASH_SOURCE[0]} found no plugin markers; no install cache match)" >&2
+  return 2
+}
 
 # Resolve the PAS project root by walking up from a candidate cwd until
 # .pas/config.yaml is found, then falling back to git's worktree root.
