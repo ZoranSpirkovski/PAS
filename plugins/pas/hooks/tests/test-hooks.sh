@@ -1235,9 +1235,12 @@ Degraded: test signal that should NOT be filed
 Priority: LOW
 EOF
 
-# Run with CLAUDE_PLUGIN_ROOT pointed at an empty fake plugin so fallback
-# also returns nothing — the "must refuse" path.
+# Run with CLAUDE_PLUGIN_ROOT pointed at a minimally-valid fake plugin whose
+# pas-config.yaml is absent/empty — the "must refuse" path. The hardened
+# resolver requires .claude-plugin/plugin.json + hooks/ to accept the path.
 FAKE_PLUGIN=$(mktemp -d)
+mkdir -p "$FAKE_PLUGIN/.claude-plugin" "$FAKE_PLUGIN/hooks"
+printf '{"name":"fake-for-c07-2"}' > "$FAKE_PLUGIN/.claude-plugin/plugin.json"
 RESULT=$(echo "{\"cwd\":\"$C07DIR2\"}" | env CLAUDE_PLUGIN_ROOT="$FAKE_PLUGIN" bash "$HOOKS_DIR/route-feedback.sh" 2>/dev/null; echo "exit=$?")
 if echo "$RESULT" | grep -q 'exit=0'; then
   PASS=$((PASS + 1))
@@ -1393,16 +1396,16 @@ rm -rf "$C02DIR" "$C02DIR2" "$C02DIR3"
 
 printf "\n${BOLD}C01. lib/guards.sh foundation${RESET}\n"
 
-# T-C01-1: CLAUDE_PLUGIN_ROOT defensive default fires when unset
-# Run a fresh bash with the var unset; sourcing guards.sh must populate it.
-RESULT=$(env -u CLAUDE_PLUGIN_ROOT bash -c "source '$HOOKS_DIR/lib/guards.sh' && echo \"\$CLAUDE_PLUGIN_ROOT\"")
-if [ -n "$RESULT" ] && [ -d "$RESULT" ]; then
+# T-C01-1: resolve_claude_plugin_root walk-up populates a valid plugin path when env is unset.
+# Sourcing alone no longer auto-sets the var; the function must be called.
+RESULT=$(env -u CLAUDE_PLUGIN_ROOT bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_claude_plugin_root && echo \"\$CLAUDE_PLUGIN_ROOT\"")
+if [ -n "$RESULT" ] && [ -f "$RESULT/.claude-plugin/plugin.json" ] && [ -d "$RESULT/hooks" ]; then
   PASS=$((PASS + 1))
-  printf "  ${GREEN}PASS${RESET} C01-1: CLAUDE_PLUGIN_ROOT defensive default sets a real path\n"
+  printf "  ${GREEN}PASS${RESET} C01-1: resolve_claude_plugin_root walk-up finds valid plugin\n"
 else
   FAIL=$((FAIL + 1))
-  ERRORS+=("C01-1: defensive default failed (got: '$RESULT')")
-  printf "  ${RED}FAIL${RESET} C01-1: CLAUDE_PLUGIN_ROOT default (got: '%s')\n" "$RESULT"
+  ERRORS+=("C01-1: walk-up failed (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C01-1: walk-up (got: '%s')\n" "$RESULT"
 fi
 
 # T-C01-2: resolve_pas_project_root from cwd containing .pas/config.yaml
@@ -1463,6 +1466,221 @@ else
   PASS=$((PASS + 1))
   printf "  ${GREEN}PASS${RESET} C01-5: returns non-zero when no PAS root resolvable\n"
 fi
+
+# =========================================================================
+# C10: resolve_claude_plugin_root hardened resolver
+# =========================================================================
+
+# T-C10-1: valid env var is accepted (strategy 1)
+RESULT=$(env CLAUDE_PLUGIN_ROOT="$(cd "$HOOKS_DIR/.." && pwd)" bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_claude_plugin_root && echo \"\$CLAUDE_PLUGIN_ROOT\"")
+EXPECTED=$(cd "$HOOKS_DIR/.." && pwd)
+if [ "$RESULT" = "$EXPECTED" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C10-1: valid env var accepted (strategy 1)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C10-1: expected '$EXPECTED', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C10-1: env-var path (got: '%s')\n" "$RESULT"
+fi
+
+# T-C10-2: invalid env var is rejected, walk-up succeeds (strategy 2)
+RESULT=$(env CLAUDE_PLUGIN_ROOT=/nonexistent-plugin-path bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_claude_plugin_root && echo \"\$CLAUDE_PLUGIN_ROOT\"" 2>/dev/null)
+if [ -n "$RESULT" ] && [ -f "$RESULT/.claude-plugin/plugin.json" ] && [ "$RESULT" != "/nonexistent-plugin-path" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C10-2: invalid env rejected, walk-up recovers\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C10-2: expected recovery via walk-up (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C10-2: walk-up recovery (got: '%s')\n" "$RESULT"
+fi
+
+# T-C10-3: env set without hooks/ dir is rejected (validation)
+TMPROOT=$(mktemp -d)
+mkdir -p "$TMPROOT/.claude-plugin"
+printf '{"name":"fake"}' > "$TMPROOT/.claude-plugin/plugin.json"
+# No hooks/ dir — should fail validation on strategy 1 and fall through to walk-up
+RESULT=$(env CLAUDE_PLUGIN_ROOT="$TMPROOT" bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_claude_plugin_root && echo \"\$CLAUDE_PLUGIN_ROOT\"" 2>/dev/null)
+if [ -n "$RESULT" ] && [ "$RESULT" != "$TMPROOT" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C10-3: invalid env (no hooks/) rejected, falls through\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C10-3: expected rejection of env without hooks/ dir (got: '$RESULT')")
+  printf "  ${RED}FAIL${RESET} C10-3: validation (got: '%s')\n" "$RESULT"
+fi
+rm -rf "$TMPROOT"
+
+# T-C10-4: all strategies fail → loud stderr + non-zero exit
+# Copy guards.sh to a location with no plugin ancestors, point HOME away.
+ISOLATED=$(mktemp -d)
+cp "$HOOKS_DIR/lib/guards.sh" "$ISOLATED/guards.sh"
+FAKE_HOME=$(mktemp -d)
+ERR_OUTPUT=$(env -u CLAUDE_PLUGIN_ROOT HOME="$FAKE_HOME" bash -c "source '$ISOLATED/guards.sh' && resolve_claude_plugin_root" 2>&1) && EXIT=$? || EXIT=$?
+if [ "$EXIT" -ne 0 ] && echo "$ERR_OUTPUT" | grep -q "unable to resolve CLAUDE_PLUGIN_ROOT"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C10-4: all strategies fail → non-zero + stderr diagnosis\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C10-4: expected non-zero exit + 'unable to resolve' stderr (exit=$EXIT, output='$ERR_OUTPUT')")
+  printf "  ${RED}FAIL${RESET} C10-4: loud failure missing (exit=%d)\n" "$EXIT"
+fi
+rm -rf "$ISOLATED" "$FAKE_HOME"
+
+# =========================================================================
+# C11: resolve_marketplace_root (Marketplace Gate helper)
+# =========================================================================
+
+# T-C11-1: cwd inside marketplace tree → echoes marketplace root
+C11DIR=$(mktemp -d)
+mkdir -p "$C11DIR/.claude-plugin" "$C11DIR/sub/deep"
+printf '{"name":"test-market"}' > "$C11DIR/.claude-plugin/marketplace.json"
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_marketplace_root '$C11DIR/sub/deep'")
+if [ "$RESULT" = "$C11DIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C11-1: walks up from subdir to marketplace root\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C11-1: expected '$C11DIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C11-1: walk-up (got: '%s')\n" "$RESULT"
+fi
+
+# T-C11-2: cwd IS the marketplace root → echoes cwd
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_marketplace_root '$C11DIR'")
+if [ "$RESULT" = "$C11DIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C11-2: cwd IS marketplace → echoes cwd\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C11-2: expected '$C11DIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C11-2: cwd-root (got: '%s')\n" "$RESULT"
+fi
+
+# T-C11-3: cwd outside any marketplace → non-zero exit
+C11DIR_OUT=$(mktemp -d)
+if bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_marketplace_root '$C11DIR_OUT'" >/dev/null 2>&1; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C11-3: expected non-zero exit outside any marketplace")
+  printf "  ${RED}FAIL${RESET} C11-3: should return non-zero\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C11-3: non-zero exit outside marketplace\n"
+fi
+rm -rf "$C11DIR" "$C11DIR_OUT"
+
+# =========================================================================
+# C13: workspace-only PAS project detection (P7 consumer shrink)
+# =========================================================================
+
+# T-C13-1: a project with only .pas/workspace/ (no config.yaml) is valid
+C13DIR=$(mktemp -d)
+mkdir -p "$C13DIR/.pas/workspace"
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && CWD='$C13DIR' guard_pas_project && echo \"OK: \$PAS_PROJECT_ROOT\"")
+if [ "$RESULT" = "OK: $C13DIR" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C13-1: workspace-only project recognized (no config.yaml)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C13-1: expected 'OK: $C13DIR', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C13-1: workspace-only (got: '%s')\n" "$RESULT"
+fi
+
+# T-C13-2: guard_feedback_enabled falls back to plugin pas-config.yaml
+# Use real plugin root (has feedback: enabled in pas-config.yaml)
+PLUGIN_ROOT=$(cd "$HOOKS_DIR/.." && pwd)
+if bash -c "source '$HOOKS_DIR/lib/guards.sh' && CWD='$C13DIR' CLAUDE_PLUGIN_ROOT='$PLUGIN_ROOT' guard_feedback_enabled" 2>/dev/null; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C13-2: feedback-enabled falls back to plugin default\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C13-2: guard_feedback_enabled failed with workspace-only + plugin default")
+  printf "  ${RED}FAIL${RESET} C13-2: plugin fallback failed\n"
+fi
+rm -rf "$C13DIR"
+
+# =========================================================================
+# C12: marketplace-aware feedback routing + host-id filenames
+# =========================================================================
+
+# T-C12-1: resolve_host_id reads from project override file
+C12DIR=$(mktemp -d)
+mkdir -p "$C12DIR/.pas/workspace"
+echo "my-test-host" > "$C12DIR/.pas/workspace/host-id"
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_host_id '$C12DIR'")
+if [ "$RESULT" = "my-test-host" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C12-1: host-id read from project override\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C12-1: expected 'my-test-host', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C12-1: host-id override (got: '%s')\n" "$RESULT"
+fi
+rm -rf "$C12DIR"
+
+# T-C12-2: resolve_host_id falls back to sanitized basename
+C12DIR2=$(mktemp -d)
+# Dir name includes safe chars; no override file
+HOST_RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_host_id '$C12DIR2'")
+EXPECTED=$(basename "$C12DIR2" | tr -cd 'A-Za-z0-9._-')
+if [ "$HOST_RESULT" = "$EXPECTED" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C12-2: host-id falls back to sanitized basename\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C12-2: expected '$EXPECTED', got '$HOST_RESULT'")
+  printf "  ${RED}FAIL${RESET} C12-2: host-id fallback (got: '%s')\n" "$HOST_RESULT"
+fi
+rm -rf "$C12DIR2"
+
+# T-C12-3: routed filename includes host-id (end-to-end via route-feedback.sh)
+C12DIR3=$(mktemp -d)
+mkdir -p "$C12DIR3/.pas/workspace/proc/inst-c12/feedback"
+mkdir -p "$C12DIR3/.pas/processes/proc/agents/tester/feedback/backlog"
+echo "my-host-c12" > "$C12DIR3/.pas/workspace/host-id"
+cat > "$C12DIR3/.pas/config.yaml" <<EOF
+feedback: enabled
+framework_signal_repo: ZoranSpirkovski/PAS
+EOF
+cat > "$C12DIR3/.pas/workspace/proc/inst-c12/status.yaml" <<EOF
+process: proc
+instance: inst-c12
+status: in_progress
+
+phases:
+  discovery:
+    status: completed
+EOF
+cat > "$C12DIR3/.pas/workspace/proc/inst-c12/feedback/tester-c12.md" <<'EOF'
+[OQI-01]
+Target: agent:tester
+Degraded: nothing important
+Priority: LOW
+EOF
+echo "{\"cwd\":\"$C12DIR3\"}" | bash "$HOOKS_DIR/route-feedback.sh" >/dev/null 2>&1 || true
+# Expect a file in the backlog with the host-id in its name
+ROUTED=$(find "$C12DIR3/.pas/processes/proc/agents/tester/feedback/backlog" -name "*my-host-c12*" 2>/dev/null | head -1)
+if [ -n "$ROUTED" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C12-3: routed filename includes host-id\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C12-3: no routed file with host-id found in backlog")
+  printf "  ${RED}FAIL${RESET} C12-3: host-id not in filename\n"
+  ls "$C12DIR3/.pas/processes/proc/agents/tester/feedback/backlog/" 2>&1 | head -3
+fi
+rm -rf "$C12DIR3"
+
+# T-C12-4: resolve_origin_marketplace returns non-zero without registry
+FAKE_HOME=$(mktemp -d)
+if env CLAUDE_PLUGIN_ROOT="/some/path/.claude/plugins/cache/fake/pas/1.0.0" HOME="$FAKE_HOME" \
+   bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_origin_marketplace" >/dev/null 2>&1; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C12-4: expected non-zero exit when registry absent")
+  printf "  ${RED}FAIL${RESET} C12-4: should fail with no registry\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C12-4: resolve_origin_marketplace fails cleanly without registry\n"
+fi
+rm -rf "$FAKE_HOME"
 
 # =========================================================================
 # Summary

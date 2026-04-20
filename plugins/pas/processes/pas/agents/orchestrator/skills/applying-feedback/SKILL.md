@@ -13,10 +13,14 @@ Review and apply accumulated feedback signals from backlogs across all PAS artif
 
 Recursively scan for pending feedback:
 
-- `.pas/processes/*/feedback/backlog/` — process-level signals
-- `.pas/processes/*/agents/*/feedback/backlog/` — agent-level signals
-- `.pas/processes/*/agents/*/skills/*/feedback/backlog/` — skill-level signals
-- `.pas/library/*/feedback/backlog/` — library skill signals
+Under the marketplace-authoritative model (PAS ≥ 1.4.0), backlogs live inside the *marketplace clone* — the writable git clone Claude Code maintains at `~/.claude/plugins/marketplaces/<marketplace>/`. For this repo (the PAS marketplace itself), the paths below are under `plugins/pas/`:
+
+- `<marketplace>/plugins/<plugin>/processes/*/feedback/backlog/` — process-level signals
+- `<marketplace>/plugins/<plugin>/processes/*/agents/*/feedback/backlog/` — agent-level signals
+- `<marketplace>/plugins/<plugin>/processes/*/agents/*/skills/*/feedback/backlog/` — skill-level signals
+- `<marketplace>/plugins/<plugin>/library/*/feedback/backlog/` — library skill signals
+
+Legacy consumer-side `.pas/processes/*/...` backlogs still exist for any project carrying pre-1.4.0 process copies; treat them the same way until migrated.
 
 List all directories containing `.md` files (pending signals).
 
@@ -122,7 +126,7 @@ Change: {what was actually changed in the artifact}
 
 Two routes exist; the wrong route will file PAS-internal changes onto the user's product repo. Always:
 
-- **PAS plugin / process / agent / skill artifacts** (under `plugins/pas/`, `.pas/processes/`, `.pas/library/`) — apply edits in-repo as direct file changes. No GitHub issue.
+- **Marketplace-resident artifacts** (under `plugins/<plugin>/`, or legacy `.pas/processes/` / `.pas/library/` copies) — apply edits in-repo as direct file changes. No GitHub issue.
 - **`framework:pas` signals routed to GitHub** — filed ONLY on the PAS framework repo (`ZoranSpirkovski/PAS`, enforced by `route-feedback.sh` `framework_signal_repo`). Never on the host project's repo. The hook handles this; this skill does not call `gh issue create`.
 - **Process / agent / skill signals** — stay local in the artifact's `feedback/backlog/` until an `applying-feedback` session processes them. They NEVER become GitHub issues anywhere.
 

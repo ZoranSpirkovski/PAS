@@ -1,5 +1,29 @@
 # Hooks Changelog
 
+## 2026-04-20 — Cycle 15 / Milestone 4: Marketplace-Authoritative
+
+Triggered by: issue #125 — PAS becomes a tool for maintaining user-controlled marketplaces of skills. Consumer projects hold only workspace state; skill definitions live in the marketplace; feedback flows back to the marketplace.
+
+Hook-level changes (10 commits, 13 new tests, harness now 130 / 0 fail):
+
+**lib/guards.sh** — hardened `${CLAUDE_PLUGIN_ROOT}` resolver. Replace the silent-fail one-liner with `resolve_claude_plugin_root()` — 4-strategy chain (validated env, walk-up, install-cache, fail-loud). Every hook sources guards.sh + calls it at startup; SessionStart uses `|| exit 0`, others `|| exit 1`. New helpers: `resolve_marketplace_root()` (walk-up for `.claude-plugin/marketplace.json`), `resolve_origin_marketplace()` (derives `<installLocation, plugin>` from plugin install path via `~/.claude/plugins/known_marketplaces.json`), `resolve_host_id()` (stable per-project id for filename disambiguation).
+
+**route-feedback.sh** — three-tier target resolution: (1) marketplace clone in `~/.claude/plugins/marketplaces/<m>/`, (2) plugin install path (read-only target lookup), (3) legacy consumer `.pas/processes/` (transitional backward-compat). Successful marketplace writes are `git add && git commit`-ed locally so they survive CC's `/plugin marketplace update`. New `_route_to_outbox()` fallback stages unwriteable signals at `${CLAUDE_PLUGIN_DATA}/pas/feedback-outbox/` + logs to `warnings.log` — signals are never silently lost. Filename format: `<date>-<host-id>-<source>-<signal-id>.md` (was: `<date>-<source>-<signal-id>.md`).
+
+**guards.sh: guard_pas_project / guard_feedback_enabled** — relaxed to accept workspace-only consumer projects. `guard_pas_project` now matches either `.pas/config.yaml` (legacy) OR `.pas/workspace/` (marketplace-authoritative). `guard_feedback_enabled` falls back to `${CLAUDE_PLUGIN_ROOT}/pas-config.yaml` when the consumer has no config.
+
+**verify-completion-gate.sh / verify-task-completion.sh / check-self-eval.sh** — error-message references swept from `.pas/library/` → `${CLAUDE_PLUGIN_ROOT}/library/`. Fixed T-C07-2 fixture (cherry-pick delta from #112) — the fake-plugin path now satisfies the hardened resolver's validation, restoring the "empty framework_signal_repo → REFUSED" assertion.
+
+Non-hook deltas in this cycle (see plugin-level docs for full release notes):
+- `/pas` gains a **Marketplace Gate** — refuses to run outside a marketplace; offers to cd / bootstrap.
+- `bootstrap-marketplace` skill — scaffold a new marketplace repo.
+- `pas-create-process` / `pas-create-skill` default target flipped to `<marketplace>/plugins/<plugin>/...` (opt out with `--fork`).
+- `plugins/pas/library/orchestration/doctrines.md` — codifies N/N+1 Protocol (#113), Dogfooding Hazard Awareness, Data Verification Norm.
+- `plugins/pas/processes/pas-development/` — now the authoritative location (migrated from `.pas/processes/pas-development/` via git mv, history preserved).
+- `.claude/CLAUDE.md` protected-path rule updated; `pr-management` Step 6 verification updated.
+
+N/N+1 note: per the codified doctrine, cycle-16 validates live behavior of the new resolver + routing from a fresh session. In-session validation covers static checks (grep, tests, version bumps) only.
+
 ## 2026-04-16 — Cycle 14 / Milestone 3: Hook Safety & Stability
 
 Triggered by: 14 GitHub issues — sessions silently disabled from worktrees, hooks crashing on missing yaml fields, `SubagentStop` derailing non-PAS subagents, completion gate deadlocking with no diagnostic, framework signals filed on product repos. Plus cycle-13 dx-specialist OQI-02 (idle-shutdown self-eval), bundled.

@@ -3,18 +3,40 @@ name: pas
 description: Use when creating, managing, or improving processes, agents, and skills. The single entry point for the PAS framework.
 ---
 
+## Marketplace Gate
+
+**PAS-the-skill operates only inside a marketplace repository** — a git repo containing `.claude-plugin/marketplace.json` at the root. PAS is the tool for maintaining the marketplace your skills live in: creating skills, improving processes, developing them, implementing issues. Skills created with PAS run anywhere via Claude Code's plugin system; but the creation/maintenance workflow happens in the marketplace repo.
+
+Before proceeding, resolve the current marketplace:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/guards.sh"
+MARKETPLACE_ROOT=$(resolve_marketplace_root)
+```
+
+**If `resolve_marketplace_root` succeeds**, export `PAS_MARKETPLACE_ROOT="$MARKETPLACE_ROOT"` and proceed.
+
+**If it fails** (current directory is not inside a marketplace), STOP and present three options via AskUserQuestion:
+
+1. **`cd` to an existing marketplace** — list registered marketplaces from `~/.claude/plugins/known_marketplaces.json` (use `jq -r 'to_entries[] | "\(.key)\t\(.value.installLocation)"'`). Ask the user to choose one or provide a path.
+2. **Bootstrap a new marketplace here** — read `${CLAUDE_SKILL_DIR}/../bootstrap-marketplace/SKILL.md` and invoke the scaffold.
+3. **Exit** — do nothing.
+
+Do NOT run creation/modification skills outside a marketplace. The hooks (feedback routing) run everywhere PAS is installed regardless — this gate applies only to the `/pas` entry-point skill.
+
+---
+
 Read `${CLAUDE_SKILL_DIR}/../../processes/pas/process.md` for the process definition.
 Read the orchestration pattern from `${CLAUDE_SKILL_DIR}/../../library/orchestration/` as specified in the process.
 
 ## Project Convention
 
-All PAS artifacts in the user's project live under `.pas/` at the project root:
+Under the marketplace-authoritative model (PAS ≥ 1.4.0):
 
-- `.pas/config.yaml` — framework configuration
-- `.pas/processes/` — process definitions, agents, skills, feedback backlogs
-- `.pas/workspace/` — execution instances, status tracking, session feedback
+- **Marketplace (`$PAS_MARKETPLACE_ROOT`)** — holds plugins, skills, processes, library content. Source of truth.
+- **Consumer `.pas/workspace/`** — execution instances, status tracking, session feedback. Lives in the project where the skill was *used*, not where it was authored.
 
-When reading, modifying, or creating artifacts — always resolve paths relative to `.pas/`.
+Older projects may still have consumer-side `.pas/processes/` or `.pas/config.yaml` from PAS ≤ 1.3.x — the upgrading skill handles migration.
 
 ## Quick Routing
 
@@ -36,15 +58,13 @@ Based on the user's message, read the appropriate skill from `${CLAUDE_SKILL_DIR
 - Never assume you understand what the user wants — ask clarifying questions until they confirm.
 - No PAS jargon unless the user uses it first. Speak in terms of goals, tasks, and steps.
 
-## First-Run Detection
+## First-Run Detection (consumer)
 
-If `.pas/config.yaml` does not exist at the project root, run self-setup:
+Under the marketplace-authoritative model, a **consumer project** holds only `.pas/workspace/` — nothing else. Hooks and skills create `.pas/workspace/` lazily on first write (no eager `.pas/config.yaml` creation).
 
-1. Create `.pas/config.yaml` with defaults: `feedback: enabled`, `feedback_disabled_at: ~`
-2. Create `.pas/workspace/` directory
-3. Confirm to the user: "PAS initialized — `.pas/` directory created with config and workspace."
+Feedback enabled/disabled defaults to the plugin-level setting at `${CLAUDE_PLUGIN_ROOT}/pas-config.yaml`. To override per-project, drop a workspace-scoped config with `feedback: disabled` (location TBD in a future cycle; legacy consumer `.pas/config.yaml` is still honored for backward compatibility).
 
-If old-style `pas-config.yaml` exists at root but `.pas/` does not, auto-migrate: move config, library, workspace, processes, and feedback into `.pas/`.
+Legacy projects: if old-style `pas-config.yaml` exists at root, auto-migrate moves it into `.pas/config.yaml` (unchanged from earlier behavior). Consumer-side `.pas/config.yaml` is **deprecated as of PAS 1.4.0** and will be removed in a future cycle after downstream consumers upgrade.
 
 Hooks (`check-self-eval.sh`, `route-feedback.sh`) are loaded automatically by Claude Code from the plugin's `hooks/hooks.json` — no project-level configuration needed.
 

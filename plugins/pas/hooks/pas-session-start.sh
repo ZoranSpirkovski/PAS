@@ -8,6 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/guards.sh"
+resolve_claude_plugin_root || exit 0
 
 guard_parse_input || exit 0
 guard_pas_project || exit 0

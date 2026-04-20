@@ -13,6 +13,8 @@ WHEN_TO_USE=""
 WHEN_NOT_TO_USE=""
 OUTPUT_FORMAT=""
 BASE_DIR=""
+PLUGIN=""
+FORK=false
 FORCE=false
 declare -a STEPS=()
 declare -a QUALITY_CHECKS=()
@@ -31,13 +33,20 @@ Required:
   --step TEXT           Process step (repeatable, in order)
 
 Optional:
-  --base-dir DIR        Base directory for output (default: current directory)
+  --base-dir DIR        Explicit base dir (default: auto-resolves marketplace cwd is inside)
+  --plugin NAME         Plugin name within the marketplace (required if >1 plugin)
+  --fork                Write into consumer-side .pas/processes/ (legacy-style)
   --when-to-use TEXT    Specific trigger conditions
   --when-not-to-use TEXT  When NOT to use
   --output-format TEXT  What the skill produces
   --quality-check TEXT  Self-check criterion (repeatable)
   --common-mistake TEXT Known pitfall (repeatable)
   --force               Overwrite existing directory
+
+Target resolution:
+  Default:  <marketplace-root>/plugins/<plugin>/processes/<PROCESS>/agents/<AGENT>/skills/<NAME>/
+  --fork:   <cwd>/.pas/processes/<PROCESS>/agents/<AGENT>/skills/<NAME>/
+  --base-dir explicitly overrides both.
 USAGE
   exit 1
 }
@@ -57,6 +66,8 @@ while [[ $# -gt 0 ]]; do
     --quality-check) QUALITY_CHECKS+=("$2"); shift 2 ;;
     --common-mistake) COMMON_MISTAKES+=("$2"); shift 2 ;;
     --base-dir) BASE_DIR="$2"; shift 2 ;;
+    --plugin) PLUGIN="$2"; shift 2 ;;
+    --fork) FORK=true; shift ;;
     --force) FORCE=true; shift ;;
     --help|-h) usage ;;
     *) echo "Error: Unknown flag '$1'"; usage ;;
@@ -84,7 +95,48 @@ if [[ ! "$NAME" =~ ^[a-z][a-z0-9-]*$ ]]; then
 fi
 
 # Build target path
-TARGET="${BASE_DIR:+${BASE_DIR}/}.pas/processes/${PROCESS}/agents/${AGENT}/skills/${NAME}"
+# Resolve target. Same three-tier logic as pas-create-process.
+if [[ -n "$BASE_DIR" ]]; then
+  TARGET="${BASE_DIR}/.pas/processes/${PROCESS}/agents/${AGENT}/skills/${NAME}"
+elif [[ "$FORK" == true ]]; then
+  TARGET="$(pwd)/.pas/processes/${PROCESS}/agents/${AGENT}/skills/${NAME}"
+else
+  SCRIPT_REAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  GUARDS_SH=""
+  for candidate in \
+      "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib/guards.sh" \
+      "${SCRIPT_REAL_DIR}/../../../../../../hooks/lib/guards.sh"; do
+    if [[ -n "$candidate" && -f "$candidate" ]]; then
+      GUARDS_SH="$candidate"; break
+    fi
+  done
+  if [[ -z "$GUARDS_SH" ]]; then
+    echo "Error: cannot locate guards.sh. Pass --base-dir or --fork." >&2
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  source "$GUARDS_SH"
+  MARKETPLACE_ROOT=$(resolve_marketplace_root "$(pwd)") || {
+    echo "Error: current directory is not inside a marketplace." >&2
+    echo "  Options: cd into a marketplace, use --fork, or --base-dir." >&2
+    exit 1
+  }
+  if [[ -z "$PLUGIN" ]]; then
+    PLUGIN_COUNT=$(ls -d "$MARKETPLACE_ROOT/plugins"/*/ 2>/dev/null | wc -l)
+    if [[ "$PLUGIN_COUNT" -eq 1 ]]; then
+      PLUGIN=$(basename "$(ls -d "$MARKETPLACE_ROOT/plugins"/*/ 2>/dev/null | head -1)")
+    else
+      echo "Error: marketplace has $PLUGIN_COUNT plugins; specify --plugin <name>." >&2
+      exit 1
+    fi
+  fi
+  if [[ ! -d "$MARKETPLACE_ROOT/plugins/$PLUGIN/processes/$PROCESS" ]]; then
+    echo "Error: process '$PROCESS' not found in $MARKETPLACE_ROOT/plugins/$PLUGIN/processes/" >&2
+    echo "  Create it first with pas-create-process." >&2
+    exit 1
+  fi
+  TARGET="$MARKETPLACE_ROOT/plugins/$PLUGIN/processes/${PROCESS}/agents/${AGENT}/skills/${NAME}"
+fi
 
 # Check directory conflict
 if [[ -d "$TARGET" && "$FORCE" != true ]]; then

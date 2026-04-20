@@ -158,7 +158,7 @@ description: ${DESCRIPTION}
 model: ${MODEL}
 tools: ${TOOLS_YAML}
 skills:
-  - .pas/library/self-evaluation/SKILL.md
+  - ${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md
 ---
 
 # ${TITLE}
@@ -179,8 +179,8 @@ EOF
   # Orchestrator-specific behavior
   if [[ "$ROLE" == "orchestrator" ]]; then
     cat <<'EOF'
-- Read .pas/processes/{process}/process.md on startup
-- Read the orchestration pattern from .pas/library/orchestration/ as declared in process.md
+- Read \${CLAUDE_PLUGIN_ROOT}/processes/{process}/process.md on startup
+- Read the orchestration pattern from \${CLAUDE_PLUGIN_ROOT}/library/orchestration/ as declared in process.md
 - Read workspace status to determine where to resume
 - Delegate phases to specialist agents via TeamCreate
 - Interface with the user at gates (supervised mode)

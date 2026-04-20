@@ -31,7 +31,7 @@ For each phase in process.md:
 - `[PAS] Phase: {phase-name}` -- description: "{agent} processes {input} to produce {output}"
 
 Shutdown tasks (always created):
-- `[PAS] Self-evaluation` -- description: "Write feedback/orchestrator.md using .pas/library/self-evaluation/SKILL.md"
+- `[PAS] Self-evaluation` -- description: "Write feedback/orchestrator.md using ${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md"
 - `[PAS] Route framework signals` -- description: "File any framework:pas signals as GitHub issues"
 - `[PAS] Finalize status` -- description: "Set status.yaml status to completed with completed_at timestamp"
 
@@ -100,7 +100,7 @@ When all phases are complete:
 
 1. **Verify all output files** exist for all phases. The `verify-task-completion.sh` TaskCompleted hook now enforces this at phase boundaries: completing a `[PAS] Phase: <name>` task is blocked when any path under that phase's `output_files:` list is missing on disk. A phase with no `output_files:` block is unaffected. (Closes #49.)
 2. **Send downstream feedback** to each team member (if any): share relevant quality notes from later phases
-3. **Each agent writes self-evaluation** using `.pas/library/self-evaluation/SKILL.md` (when feedback is enabled). This is mandatory -- do NOT proceed to step 4 until all agents have written their feedback. Output to `.pas/workspace/{process}/{slug}/feedback/{agent-name}.md`. The `check-self-eval.sh` SubagentStop hook blocks agents from stopping without feedback, and the `verify-completion-gate.sh` Stop hook verifies ALL agents have feedback files before the orchestrator can stop.
+3. **Each agent writes self-evaluation** using `${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md` (when feedback is enabled). This is mandatory -- do NOT proceed to step 4 until all agents have written their feedback. Output to `.pas/workspace/{process}/{slug}/feedback/{agent-name}.md`. The `check-self-eval.sh` SubagentStop hook blocks agents from stopping without feedback, and the `verify-completion-gate.sh` Stop hook verifies ALL agents have feedback files before the orchestrator can stop.
 4. **All agents shut down together** after self-evaluation completes. The orchestrator MUST NOT instruct agents to skip self-evaluation — hook enforcement will block the session if any agent feedback is missing.
 5. **Orchestrator writes own self-evaluation** to `.pas/workspace/{process}/{slug}/feedback/orchestrator.md`. The orchestrator is an agent too -- it observes issues that team members cannot (coordination failures, gate misjudgments, process-level problems). Do NOT skip this step.
 6. **Route framework signals**: Any signal with target `framework:pas` must be filed as a GitHub issue on the PAS repository. Do not leave framework signals in local feedback files only.
@@ -149,3 +149,11 @@ If a session is interrupted (context limits, user leaves, crash):
 5. Re-spawn team members as needed (they don't persist across sessions)
 
 The orchestrator is responsible for completing the process to a high degree of quality regardless of how many sessions it takes.
+
+## Doctrines
+
+Cross-cycle operating rules that inform planning and validation — see `${CLAUDE_PLUGIN_ROOT}/library/orchestration/doctrines.md`. Relevant doctrines include:
+
+- **N/N+1 Protocol** — hook-substrate changes ship in cycle N, validate from a fresh session in cycle N+1.
+- **Dogfooding Hazard Awareness** — sequence substrate-mutating commits late; don't re-exercise modified paths mid-cycle.
+- **Data Verification Norm** — every external/quantitative claim must be backed by a command, URL, or file reference.
