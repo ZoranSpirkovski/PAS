@@ -6,7 +6,7 @@ Set up PAS feedback hooks when ALL of these are true:
 
 1. The project has `.pas/config.yaml` with `feedback: enabled`
 2. The process uses agents (not solo orchestrator-only)
-3. Agents carry `.pas/library/self-evaluation/SKILL.md`
+3. Agents carry `${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md`
 
 ## The Two Standard Hooks
 
@@ -96,7 +96,7 @@ Agent '${AGENT_ID}' is shutting down without writing self-evaluation.
 Before stopping, write your self-evaluation to:
   ${FEEDBACK_DIR}/${AGENT_ID}.md
 
-Use .pas/library/self-evaluation/SKILL.md for the format.
+Use ${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md for the format.
 If nothing went wrong, write "No issues detected."
 EOF
 exit 2

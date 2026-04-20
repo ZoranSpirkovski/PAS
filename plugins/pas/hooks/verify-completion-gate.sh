@@ -105,7 +105,7 @@ ABS_EXPECTED="${ABS_FEEDBACK_DIR}/${EXPECTED_FILE}"
   echo ""
   echo "Before stopping, you MUST:"
   echo "1. Write self-evaluation to ${ABS_EXPECTED}"
-  echo "   - Use .pas/library/self-evaluation/SKILL.md for the format"
+  echo "   - Use \${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md for the format"
   echo "   - If nothing went wrong, write \"No issues detected.\""
   if [ -n "$MISSING_AGENTS" ]; then
     echo "2. Ensure all agents have written their feedback files"

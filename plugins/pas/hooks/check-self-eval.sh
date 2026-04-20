@@ -84,7 +84,7 @@ To resolve, write your evaluation to:
 
 If nothing went wrong, the file may contain just: "No issues detected."
 
-Format reference: .pas/library/self-evaluation/SKILL.md
+Format reference: \${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md
 To disable feedback for this project: edit .pas/config.yaml → feedback: disabled
 EOF
 exit 2
