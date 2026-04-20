@@ -75,6 +75,90 @@ resolve_marketplace_root() {
   return 1
 }
 
+# Resolve origin marketplace for a running plugin via Claude Code's registry.
+# Inputs: reads from ~/.claude/plugins/known_marketplaces.json.
+# Uses CLAUDE_PLUGIN_ROOT as the resolved install path. Extracts the
+# marketplace slug from the install path pattern:
+#   ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/
+#   ~/.claude/plugins/marketplaces/<marketplace>/plugins/<plugin>/
+#
+# Echoes tab-separated "<installLocation>\t<plugin-name>" on success.
+# installLocation is the writable marketplace clone tracked by Claude Code.
+# Returns 1 if the registry isn't readable or the shape doesn't match.
+resolve_origin_marketplace() {
+  local plugin_root="${1:-${CLAUDE_PLUGIN_ROOT:-}}"
+  local registry="${HOME}/.claude/plugins/known_marketplaces.json"
+
+  [ -z "$plugin_root" ] && return 1
+  [ ! -f "$registry" ] && return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  local marketplace="" plugin=""
+
+  # Pattern A: install cache — .../cache/<marketplace>/<plugin>/<version>/
+  case "$plugin_root" in
+    */.claude/plugins/cache/*)
+      marketplace=$(echo "$plugin_root" | sed -n 's|.*/\.claude/plugins/cache/\([^/]*\)/\([^/]*\)/.*|\1|p')
+      plugin=$(echo "$plugin_root" | sed -n 's|.*/\.claude/plugins/cache/\([^/]*\)/\([^/]*\)/.*|\2|p')
+      ;;
+    */.claude/plugins/marketplaces/*)
+      # Pattern B: marketplace clone itself — .../marketplaces/<marketplace>/plugins/<plugin>
+      marketplace=$(echo "$plugin_root" | sed -n 's|.*/\.claude/plugins/marketplaces/\([^/]*\)/.*|\1|p')
+      plugin=$(echo "$plugin_root" | sed -n 's|.*/\.claude/plugins/marketplaces/[^/]*/plugins/\([^/]*\).*|\1|p')
+      ;;
+    *)
+      # Pattern C: dev checkout not under ~/.claude — can't resolve from path alone
+      return 1
+      ;;
+  esac
+
+  [ -z "$marketplace" ] && return 1
+  [ -z "$plugin" ] && return 1
+
+  local install_location
+  install_location=$(jq -r --arg m "$marketplace" '.[$m].installLocation // empty' "$registry" 2>/dev/null)
+
+  [ -z "$install_location" ] && return 1
+  [ ! -d "$install_location" ] && return 1
+
+  printf '%s\t%s\n' "$install_location" "$plugin"
+}
+
+# Resolve a stable host-id used to disambiguate routed filenames across
+# consumer hosts writing to the same marketplace clone.
+# Resolution order:
+#   1. <cwd>/.pas/workspace/host-id (per-project override)
+#   2. ~/.claude/pas-host-id (user-level default)
+#   3. basename of cwd (sanitized) — cached to .pas/workspace/host-id on first
+#      resolution so next run is stable.
+resolve_host_id() {
+  local cwd="${1:-${CWD:-$(pwd)}}"
+  local project_host_id="$cwd/.pas/workspace/host-id"
+  local user_host_id="${HOME}/.claude/pas-host-id"
+
+  if [ -f "$project_host_id" ]; then
+    head -1 "$project_host_id" | tr -cd 'A-Za-z0-9._-'
+    return 0
+  fi
+
+  if [ -f "$user_host_id" ]; then
+    head -1 "$user_host_id" | tr -cd 'A-Za-z0-9._-'
+    return 0
+  fi
+
+  local fallback
+  fallback=$(basename "$cwd" | tr -cd 'A-Za-z0-9._-')
+  [ -z "$fallback" ] && fallback="unknown-host"
+
+  # Cache for stability (only if .pas/workspace/ exists — don't create it just
+  # for host-id; the first workspace write creates the directory).
+  if [ -d "$cwd/.pas/workspace" ]; then
+    printf '%s\n' "$fallback" > "$project_host_id" 2>/dev/null || true
+  fi
+
+  printf '%s\n' "$fallback"
+}
+
 # Resolve the PAS project root by walking up from a candidate cwd until a
 # .pas/ marker is found (either config.yaml — legacy — or workspace/ —
 # marketplace-authoritative). Falls back to git's worktree root.

@@ -1598,6 +1598,91 @@ fi
 rm -rf "$C13DIR"
 
 # =========================================================================
+# C12: marketplace-aware feedback routing + host-id filenames
+# =========================================================================
+
+# T-C12-1: resolve_host_id reads from project override file
+C12DIR=$(mktemp -d)
+mkdir -p "$C12DIR/.pas/workspace"
+echo "my-test-host" > "$C12DIR/.pas/workspace/host-id"
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_host_id '$C12DIR'")
+if [ "$RESULT" = "my-test-host" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C12-1: host-id read from project override\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C12-1: expected 'my-test-host', got '$RESULT'")
+  printf "  ${RED}FAIL${RESET} C12-1: host-id override (got: '%s')\n" "$RESULT"
+fi
+rm -rf "$C12DIR"
+
+# T-C12-2: resolve_host_id falls back to sanitized basename
+C12DIR2=$(mktemp -d)
+# Dir name includes safe chars; no override file
+HOST_RESULT=$(bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_host_id '$C12DIR2'")
+EXPECTED=$(basename "$C12DIR2" | tr -cd 'A-Za-z0-9._-')
+if [ "$HOST_RESULT" = "$EXPECTED" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C12-2: host-id falls back to sanitized basename\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C12-2: expected '$EXPECTED', got '$HOST_RESULT'")
+  printf "  ${RED}FAIL${RESET} C12-2: host-id fallback (got: '%s')\n" "$HOST_RESULT"
+fi
+rm -rf "$C12DIR2"
+
+# T-C12-3: routed filename includes host-id (end-to-end via route-feedback.sh)
+C12DIR3=$(mktemp -d)
+mkdir -p "$C12DIR3/.pas/workspace/proc/inst-c12/feedback"
+mkdir -p "$C12DIR3/.pas/processes/proc/agents/tester/feedback/backlog"
+echo "my-host-c12" > "$C12DIR3/.pas/workspace/host-id"
+cat > "$C12DIR3/.pas/config.yaml" <<EOF
+feedback: enabled
+framework_signal_repo: ZoranSpirkovski/PAS
+EOF
+cat > "$C12DIR3/.pas/workspace/proc/inst-c12/status.yaml" <<EOF
+process: proc
+instance: inst-c12
+status: in_progress
+
+phases:
+  discovery:
+    status: completed
+EOF
+cat > "$C12DIR3/.pas/workspace/proc/inst-c12/feedback/tester-c12.md" <<'EOF'
+[OQI-01]
+Target: agent:tester
+Degraded: nothing important
+Priority: LOW
+EOF
+echo "{\"cwd\":\"$C12DIR3\"}" | bash "$HOOKS_DIR/route-feedback.sh" >/dev/null 2>&1 || true
+# Expect a file in the backlog with the host-id in its name
+ROUTED=$(find "$C12DIR3/.pas/processes/proc/agents/tester/feedback/backlog" -name "*my-host-c12*" 2>/dev/null | head -1)
+if [ -n "$ROUTED" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C12-3: routed filename includes host-id\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C12-3: no routed file with host-id found in backlog")
+  printf "  ${RED}FAIL${RESET} C12-3: host-id not in filename\n"
+  ls "$C12DIR3/.pas/processes/proc/agents/tester/feedback/backlog/" 2>&1 | head -3
+fi
+rm -rf "$C12DIR3"
+
+# T-C12-4: resolve_origin_marketplace returns non-zero without registry
+FAKE_HOME=$(mktemp -d)
+if env CLAUDE_PLUGIN_ROOT="/some/path/.claude/plugins/cache/fake/pas/1.0.0" HOME="$FAKE_HOME" \
+   bash -c "source '$HOOKS_DIR/lib/guards.sh' && resolve_origin_marketplace" >/dev/null 2>&1; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C12-4: expected non-zero exit when registry absent")
+  printf "  ${RED}FAIL${RESET} C12-4: should fail with no registry\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C12-4: resolve_origin_marketplace fails cleanly without registry\n"
+fi
+rm -rf "$FAKE_HOME"
+
+# =========================================================================
 # Summary
 # =========================================================================
 

@@ -18,35 +18,83 @@ LAST_MESSAGE=$(echo "$INPUT" | jq -r '.last_assistant_message // empty')
 resolve_target_path() {
   local target="$1"
   local type value
-
   type=$(echo "$target" | cut -d: -f1)
   value=$(echo "$target" | cut -d: -f2-)
 
+  # Framework signals go to GitHub issues — caller handles via route_framework_signal
+  if [ "$type" = "framework" ]; then
+    echo "__framework__"
+    return 0
+  fi
+
+  local found=""
+
+  # Tier 1: marketplace clone (marketplace-authoritative model, PAS ≥ 1.4.0).
+  # Search under the writable marketplace clone that Claude Code manages.
+  local origin marketplace_root plugin_name
+  origin=$(resolve_origin_marketplace 2>/dev/null || true)
+  if [ -n "$origin" ]; then
+    marketplace_root=$(echo "$origin" | cut -f1)
+    plugin_name=$(echo "$origin" | cut -f2)
+    local search_root="$marketplace_root/plugins/$plugin_name"
+    case "$type" in
+      process) found=$(ls -d "$search_root/processes/$value/feedback/backlog" 2>/dev/null | head -1) ;;
+      agent)   found=$(find "$search_root/processes" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1) ;;
+      skill)
+        found=$(find "$search_root/processes" -path "*/skills/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+        if [ -z "$found" ]; then
+          found=$(find "$search_root/library" -path "*/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+        fi
+        ;;
+    esac
+    if [ -n "$found" ]; then
+      echo "$found"
+      return 0
+    fi
+  fi
+
+  # Tier 2: plugin install path (read-only, but targets may exist as backlog
+  # directories shipped in the plugin even if we can't write there — the write
+  # path will redirect to marketplace clone via origin lookup above when it
+  # matters).
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    case "$type" in
+      process) found=$(ls -d "$CLAUDE_PLUGIN_ROOT/processes/$value/feedback/backlog" 2>/dev/null | head -1) ;;
+      agent)   found=$(find "$CLAUDE_PLUGIN_ROOT/processes" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1) ;;
+      skill)
+        found=$(find "$CLAUDE_PLUGIN_ROOT/processes" -path "*/skills/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+        if [ -z "$found" ]; then
+          found=$(find "$CLAUDE_PLUGIN_ROOT/library" -path "*/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+        fi
+        ;;
+    esac
+    if [ -n "$found" ]; then
+      echo "$found"
+      return 0
+    fi
+  fi
+
+  # Tier 3: consumer-local .pas/processes tree (legacy; transitional
+  # backward-compat for consumers/cycles that still carry process copies).
+  # Removed in a future cycle once downstream has migrated.
   case "$type" in
     process)
-      echo "$CWD/$PAS_ROOT/processes/$value/feedback/backlog"
+      if [ -d "$CWD/$PAS_ROOT/processes/$value/feedback/backlog" ]; then
+        found="$CWD/$PAS_ROOT/processes/$value/feedback/backlog"
+      fi
       ;;
     agent)
-      local found
       found=$(find "$CWD/$PAS_ROOT/processes" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1)
-      echo "${found:-}"
       ;;
     skill)
-      local found
       found=$(find "$CWD/$PAS_ROOT/processes" -path "*/skills/$value/feedback/backlog" -type d 2>/dev/null | head -1)
       if [ -z "$found" ]; then
         found=$(find "$CWD/$PAS_ROOT/library" -path "*/$value/feedback/backlog" -type d 2>/dev/null | head -1)
       fi
-      echo "${found:-}"
-      ;;
-    framework)
-      # Sentinel value — caller handles framework routing via route_framework_signal()
-      echo "__framework__"
-      ;;
-    *)
-      echo ""
       ;;
   esac
+
+  echo "${found:-}"
 }
 
 route_signal() {
@@ -54,13 +102,73 @@ route_signal() {
   local signal_id="$2"
   local source_basename="$3"
   local target_path="$4"
-  local today
 
+  local today host_id
   today=$(date +%Y-%m-%d)
-  local dest_file="$target_path/${today}-${source_basename}-${signal_id}.md"
+  host_id=$(resolve_host_id "${CWD:-$(pwd)}" 2>/dev/null || echo "unknown-host")
 
-  mkdir -p "$target_path"
-  echo "$signal_block" > "$dest_file"
+  # Filename format: <date>-<host-id>-<source>-<signal-id>.md
+  # host-id disambiguates multi-host writes to shared marketplace clones.
+  local dest_file="$target_path/${today}-${host_id}-${source_basename}-${signal_id}.md"
+
+  # Write the file.
+  if ! mkdir -p "$target_path" 2>/dev/null; then
+    _route_to_outbox "$signal_block" "$signal_id" "$source_basename" "$target_path" "mkdir-failed"
+    return 0
+  fi
+  if ! echo "$signal_block" > "$dest_file" 2>/dev/null; then
+    _route_to_outbox "$signal_block" "$signal_id" "$source_basename" "$target_path" "write-failed"
+    return 0
+  fi
+
+  # If the destination is inside a marketplace clone, git-commit it locally.
+  # Never push — the user pushes explicitly. This makes feedback survive any
+  # `/plugin marketplace update` that Claude Code runs against the clone.
+  case "$target_path" in
+    "$HOME/.claude/plugins/marketplaces/"*)
+      local marketplace_dir
+      marketplace_dir=$(echo "$target_path" | sed -n 's|\(.*/\.claude/plugins/marketplaces/[^/]*\)/.*|\1|p')
+      if [ -n "$marketplace_dir" ] && [ -d "$marketplace_dir/.git" ]; then
+        (
+          cd "$marketplace_dir" 2>/dev/null || exit 0
+          git add "$dest_file" >/dev/null 2>&1 || exit 0
+          git commit --no-verify -m "feedback: ${signal_id} (${host_id})" >/dev/null 2>&1 || true
+        )
+      fi
+      ;;
+  esac
+}
+
+# Private: write an undelivered signal to the plugin-data outbox so it
+# isn't lost. A future 'propagate-feedback' op drains this outbox.
+_route_to_outbox() {
+  local signal_block="$1"
+  local signal_id="$2"
+  local source_basename="$3"
+  local intended_target="$4"
+  local reason="$5"
+
+  local outbox_root="${CLAUDE_PLUGIN_DATA:-${HOME}/.claude/plugins/data/pas}"
+  local outbox_dir="$outbox_root/feedback-outbox"
+  mkdir -p "$outbox_dir" 2>/dev/null || return 0
+
+  local today host_id
+  today=$(date +%Y-%m-%d)
+  host_id=$(resolve_host_id "${CWD:-$(pwd)}" 2>/dev/null || echo "unknown-host")
+  local outbox_file="$outbox_dir/${today}-${host_id}-${source_basename}-${signal_id}.md"
+
+  {
+    echo "# PAS Outbox — undelivered feedback"
+    echo "# Reason: $reason"
+    echo "# Intended target path: $intended_target"
+    echo "# Signal ID: $signal_id"
+    echo "---"
+    echo "$signal_block"
+  } > "$outbox_file" 2>/dev/null || true
+
+  local warn_log="${CWD:-$(pwd)}/$PAS_ROOT/feedback/warnings.log"
+  mkdir -p "$(dirname "$warn_log")" 2>/dev/null || true
+  echo "[$(date -Iseconds)] OUTBOX: $signal_id staged at $outbox_file (reason: $reason)" >> "$warn_log" 2>/dev/null || true
 }
 
 route_framework_signal() {
