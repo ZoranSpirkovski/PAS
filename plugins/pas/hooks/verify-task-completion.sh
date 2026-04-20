@@ -11,6 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/guards.sh"
+resolve_claude_plugin_root || exit 1
 
 guard_parse_input || exit 0
 
@@ -43,7 +44,7 @@ case "$TASK_SUBJECT" in
 Cannot complete "Self-evaluation" task: ${FEEDBACK_DIR}/${EXPECTED} does not exist.
 
 Write your self-evaluation to this file before marking the task complete.
-Use .pas/library/self-evaluation/SKILL.md for the format.
+Use \${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md for the format.
 EOF
       exit 2
     fi

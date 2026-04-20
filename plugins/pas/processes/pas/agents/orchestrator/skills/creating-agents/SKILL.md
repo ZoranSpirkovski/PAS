@@ -33,7 +33,7 @@ For each skill the agent needs:
 - Read `creating-skills/SKILL.md` from the same skills directory as this skill
 - Follow its workflow to create each skill
 - Skills live inside the agent's directory at `skills/{skill-name}/SKILL.md`
-- Check `.pas/library/` for global skills the agent should carry (e.g., `.pas/library/self-evaluation/SKILL.md`)
+- Check `${CLAUDE_PLUGIN_ROOT}/library/` for global skills the agent should carry (e.g., `${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md`)
 
 ### 4. Select Model Tier
 
