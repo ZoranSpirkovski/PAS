@@ -11,41 +11,39 @@ All PAS plugin development happens on `dev`. Issues get applied here, tested, va
 
 ## Repo Layout
 
-- `plugins/pas/` — The PAS plugin (skills, hooks, library, processes)
-- `.pas/` — All PAS project-level artifacts (single root directory)
-  - `.pas/processes/pas-development/` — The PAS development process (7 agents, 5 phases)
-  - `.pas/library/` — Bootstrapped library (copied from plugin for local use)
+- `plugins/pas/` — The PAS plugin (skills, hooks, library, processes — including `pas-development` as of 1.4.0)
+- `.pas/` — Consumer-side workspace for this repo acting as a consumer of itself
   - `.pas/workspace/` — Session workspaces (status tracking, feedback)
-  - `.pas/config.yaml` — Local PAS configuration
   - `.pas/feedback/` — Framework-level feedback routing logs
 - `docs/plans/` — Design docs and implementation plans
-- `.claude/skills/pas-development/` — Thin launcher for the dev process
+- `.claude/skills/pas-development/` — Thin launcher for the dev process (reads from `${CLAUDE_PLUGIN_ROOT}/processes/pas-development/`)
 - `.claude-plugin/marketplace.json` — Marketplace catalog
 
 ## Plugin Structure
 
 - `plugins/pas/skills/pas/SKILL.md` — `/pas` entry point with intelligent routing
+- `plugins/pas/skills/bootstrap-marketplace/` — Scaffold a new user-controlled marketplace
 - `plugins/pas/hooks/` — Hook scripts and configuration (self-eval check, feedback routing)
-- `plugins/pas/library/` — Global skills (orchestration, self-evaluation, message-routing)
-- `plugins/pas/processes/pas/` — PAS self-management process (orchestrator with 4 skills)
-- `plugins/pas/pas-config.yaml` — Framework configuration (feedback toggle)
+- `plugins/pas/library/` — Global skills (orchestration, self-evaluation, message-routing, doctrines)
+- `plugins/pas/processes/pas/` — PAS self-management process (orchestrator with 5 skills)
+- `plugins/pas/processes/pas-development/` — The PAS development process itself (authoritative location as of 1.4.0)
+- `plugins/pas/pas-config.yaml` — Framework configuration (feedback toggle, framework_signal_repo)
 
 ## PR Scope
 
 PRs are for direct PAS plugin changes only — files under `plugins/pas/` plus `.claude-plugin/marketplace.json` (distribution artifact updated by the version auto-bump). Everything else (`.pas/` artifacts, `docs/plans/`, changelogs) gets committed directly to `dev`. This keeps PRs focused on reviewable plugin upgrades.
 
 **In a feature branch PR:** `plugins/pas/` changes and `.claude-plugin/marketplace.json`.
-**On dev directly:** `.pas/` artifacts (library, workspace, processes, feedback), changelogs, plans.
+**On dev directly:** `.pas/` workspace artifacts (no longer processes — those are in the plugin), changelogs, plans.
 
 ## Protected Files (dev branch)
 
 NEVER delete or exclude these directories when merging, cleaning, or restructuring:
 
-- `.pas/processes/pas-development/` — The full process definition (process.md, 7 agents, 9 skills, modes)
-- `.pas/library/` — Bootstrapped library skills
-- `.pas/workspace/` — Session workspaces and feedback
+- `plugins/pas/processes/pas-development/` — The PAS development process (7 agents, 5 phases, quick sub-process). **Under 1.4.0 this is the authoritative location — migrated from `.pas/processes/pas-development/` in cycle-15.** DO NOT move it back or delete it.
+- `.pas/workspace/` — Session workspaces and feedback (consumer-side artifacts for cycles running in this repo)
 
-These are dev-only artifacts that do NOT go in PRs, but they MUST remain on the dev branch. If a merge or cleanup removes them, restore immediately from git history.
+If a merge or cleanup removes them, restore immediately from git history.
 
 ## Development Workflow
 
@@ -56,6 +54,6 @@ Changes to the PAS plugin (`plugins/pas/`) should go through `/pas-development` 
 - Every artifact (process, agent, skill) has `feedback/backlog/` and `changelog.md`
 - Skills follow Agent Skills spec (SKILL.md format with YAML frontmatter + progressive disclosure markdown)
 - Agents are always process-local (no shared agents across processes)
-- Skills are local-first; only graduate to `.pas/library/` when reused in 2+ places
+- Skills are local-first; only graduate to `plugins/pas/library/` when reused in 2+ places
 - PAS framework feedback always goes to a GitHub issue — no exceptions
-- pas-development process feedback stays local in `.pas/processes/pas-development/feedback/backlog/`
+- pas-development process feedback now lives in `plugins/pas/processes/pas-development/.../feedback/backlog/` (migrated in cycle-15)

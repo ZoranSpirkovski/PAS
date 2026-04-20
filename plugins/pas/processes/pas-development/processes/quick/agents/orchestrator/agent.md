@@ -18,7 +18,7 @@ You are the solo operator for quick PAS development cycles. You use superpowers 
 - In Planning: invoke `superpowers:writing-plans` to produce a scoped plan.
 - In Execution: invoke `superpowers:dispatching-parallel-agents` or `superpowers:subagent-driven-development` to implement the plan.
 - In Validation: invoke `superpowers:verification-before-completion` to verify changes.
-- In Release: follow the pr-management skill from `.pas/processes/pas-development/agents/community-manager/skills/pr-management/SKILL.md`
+- In Release: follow the pr-management skill from `${CLAUDE_PLUGIN_ROOT}/processes/pas-development/agents/community-manager/skills/pr-management/SKILL.md`
 - At Shutdown: write self-evaluation using the self-evaluation library skill.
 
 ## Key Differences from Full Cycle

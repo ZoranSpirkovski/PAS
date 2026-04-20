@@ -25,7 +25,7 @@ Ask the user how they want to start discovery:
 - **Brainstorm** — invoke `superpowers:brainstorming` to interactively define the directive, then proceed
 
 Then:
-Read `.pas/processes/pas-development/process.md` for the process definition.
+Read `${CLAUDE_PLUGIN_ROOT}/processes/pas-development/process.md` for the process definition.
 Read the orchestration pattern from `${CLAUDE_PLUGIN_ROOT}/library/orchestration/` as specified in the process.
 Execute.
 
@@ -33,7 +33,7 @@ After multi-agent discovery completes, if the findings surface complexity or tra
 
 ### Quick cycle
 
-Read `.pas/processes/pas-development/processes/quick/process.md` for the process definition.
+Read `${CLAUDE_PLUGIN_ROOT}/processes/pas-development/processes/quick/process.md` for the process definition.
 Read the orchestration pattern from `${CLAUDE_PLUGIN_ROOT}/library/orchestration/` as specified in the process.
 Execute.
 

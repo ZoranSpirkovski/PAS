@@ -108,22 +108,24 @@ git fetch origin main
 git merge origin/main --no-ff -m "Merge main into dev after PR #{N}"
 ```
 
-**Immediately verify dev-only directories survived the merge:**
+**Immediately verify protected directories survived the merge:**
 
 ```bash
-test -f processes/pas-development/process.md && echo "OK: process.md" || echo "MISSING: process.md"
-test -d library/ && echo "OK: library/" || echo "MISSING: library/"
-test -d workspace/ && echo "OK: workspace/" || echo "MISSING: workspace/"
+# Under PAS 1.4.0+ pas-development lives INSIDE the plugin tree (authoritative).
+test -f plugins/pas/processes/pas-development/process.md && echo "OK: pas-development process.md" || echo "MISSING: plugins/pas/processes/pas-development/process.md"
+
+# Consumer-side workspace (cycle state) stays in .pas/workspace/.
+test -d .pas/workspace/ && echo "OK: .pas/workspace/" || echo "MISSING: .pas/workspace/"
 ```
 
 If any are missing, restore them from the commit before the merge:
 
 ```bash
-git checkout HEAD~1 -- processes/ library/ workspace/
-git commit -m "Restore dev-only directories after main merge"
+git checkout HEAD~1 -- plugins/pas/processes/pas-development/ .pas/workspace/
+git commit -m "Restore protected directories after main merge"
 ```
 
-This step is required. Skipping it causes dev and main to diverge, and the next cherry-pick becomes harder. The verification guard prevents the class of bug that has deleted `processes/pas-development/` twice in the past.
+This step is required. Skipping it causes dev and main to diverge, and the next cherry-pick becomes harder. The verification guard prevents the class of bug that has deleted `plugins/pas/processes/pas-development/` (formerly `processes/pas-development/`) twice in the past — the path moved in cycle-15 but the protection stays.
 
 ## Quality Checks
 
