@@ -8,6 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/guards.sh"
+resolve_claude_plugin_root || exit 0
 
 guard_parse_input || exit 0
 guard_pas_project || exit 0
@@ -75,7 +76,7 @@ cat <<EOF
 PAS Framework Active (feedback: ${FEEDBACK_STATUS})
 ${SESSION_CONTEXT}
 
-When running a PAS process, you MUST follow this lifecycle:
+Whether running a formal PAS process or executing an ad-hoc plan, you MUST follow this lifecycle:
 
 STARTUP (before any work):
 1. Create workspace: mkdir -p .pas/workspace/{process}/{slug}/{discovery,planning,execution/changes,validation,feedback}
@@ -94,6 +95,7 @@ SHUTDOWN (after all phases complete):
 
 ENFORCEMENT: Hooks will block you from stopping or completing tasks if deliverables are missing.
 CREATION ROUTING: When the user wants to create a process, agent, skill, or workflow, offer /pas:pas as the tool to do it. PAS provides structured creation with brainstorming, proper scaffolding, and feedback integration.
+DEVELOPMENT ROUTING: When changes are being made to the PAS plugin (plugins/pas/), invoke /pas-development instead of editing files directly. It provides structured discovery, planning, execution, validation, and release with feedback collection.
 Feedback files MUST include your session ID (${SESSION_SHORT:-unknown}) in the filename.
 
 SUBAGENT NOTE: The above lifecycle applies to the PRIMARY orchestrator session

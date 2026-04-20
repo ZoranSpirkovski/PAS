@@ -9,6 +9,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/guards.sh"
+resolve_claude_plugin_root || exit 1
 
 guard_parse_input || exit 0
 
@@ -104,7 +105,7 @@ ABS_EXPECTED="${ABS_FEEDBACK_DIR}/${EXPECTED_FILE}"
   echo ""
   echo "Before stopping, you MUST:"
   echo "1. Write self-evaluation to ${ABS_EXPECTED}"
-  echo "   - Use .pas/library/self-evaluation/SKILL.md for the format"
+  echo "   - Use \${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md for the format"
   echo "   - If nothing went wrong, write \"No issues detected.\""
   if [ -n "$MISSING_AGENTS" ]; then
     echo "2. Ensure all agents have written their feedback files"

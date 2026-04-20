@@ -17,23 +17,23 @@ Declarative upgrade: define what PAS expects, scan the project, fix gaps. No ver
 
 The current PAS plugin expects these conditions. Each item has a check and a fix.
 
-### 1. Config location
+### 1. Consumer layout (PAS ≥ 1.4.0 — marketplace-authoritative)
 
-- **Expected:** `.pas/config.yaml` exists
-- **Legacy:** `pas-config.yaml` at project root (no `.pas/` directory)
-- **Fix:** Create `.pas/` directory, move `pas-config.yaml` to `.pas/config.yaml`
+- **Expected (consumer project):** ONLY `.pas/workspace/` exists. No `.pas/config.yaml`, no `.pas/processes/`, no `.pas/library/`. Feedback defaults read from the plugin-level `${CLAUDE_PLUGIN_ROOT}/pas-config.yaml`.
+- **Legacy (PAS ≤ 1.3.x consumer):** `.pas/config.yaml` + possibly `.pas/processes/` with old process copies.
+- **Fix:** Preserve `.pas/config.yaml` (backward-compat still honored), but delete `.pas/processes/` / `.pas/library/` if they shadow skills that now come from an installed plugin. Back up first. Verify each process: if the plugin marketplace ships the same process, delete the consumer copy.
 
-### 2. Workspace location
+### 2. Workspace location (unchanged)
 
-- **Expected:** `.pas/workspace/` exists
-- **Legacy:** `workspace/` at project root
-- **Fix:** Move `workspace/` to `.pas/workspace/`
+- **Expected:** `.pas/workspace/` exists and contains execution state.
+- **Legacy:** `workspace/` at project root.
+- **Fix:** Move `workspace/` to `.pas/workspace/`.
 
-### 3. Processes location
+### 3. Marketplace context (new)
 
-- **Expected:** `.pas/processes/` contains process definitions
-- **Legacy:** `processes/` at project root
-- **Fix:** Move `processes/` to `.pas/processes/`
+- **Expected (maintainer workflow):** When running `/pas:pas`, cwd is inside a marketplace repository (has `.claude-plugin/marketplace.json` at its root).
+- **Legacy:** cwd is inside a consumer project — PAS-the-skill refuses to run (use `/pas:pas` from inside your marketplace instead; hooks still route feedback from anywhere).
+- **Fix:** Either cd to your marketplace, or invoke the `bootstrap-marketplace` skill to scaffold one.
 
 ### 4. No local library copy
 
