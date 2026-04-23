@@ -1,2 +1,25 @@
 feedback/warnings.log
 *.routed
+
+# Secrets, credentials, local env (preventative — repo is clean today)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+.netrc
+.npmrc
+.pypirc
+.htpasswd
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+.aws/
+.gcp/
+.ssh/
+secrets.*
+credentials.*
