@@ -68,7 +68,10 @@ if [ -n "$LAST_MSG" ] && [ "$LAST_MSG_LEN" -gt 200 ]; then
   # Known summary boilerplates that should NOT count as substantive.
   # Match the exact strings observed in #71 / #68 / #38 reports.
   if ! echo "$LAST_MSG" | head -c 400 | grep -qiE 'self-evaluation written|self-evaluation has been written|no issues detected|written to the requested location|feedback file written|written\. (no issues|task tracking)'; then
-    echo "PAS feedback hook INFO: substantive response detected (${LAST_MSG_LEN} chars), gate bypassed for agent '${AGENT_ID}'" >&2
+    # Silent bypass (cycle-18). The agent produced a substantive response,
+    # not a self-eval boilerplate — let it stop without dragging the
+    # transcript into bookkeeping. The block path below still fires when
+    # feedback is genuinely missing.
     exit 0
   fi
 fi
@@ -87,4 +90,5 @@ If nothing went wrong, the file may contain just: "No issues detected."
 Format reference: \${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md
 To disable feedback for this project: edit .pas/config.yaml → feedback: disabled
 EOF
+pas_version_footer >&2
 exit 2

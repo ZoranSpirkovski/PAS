@@ -41,7 +41,10 @@ fi
 # stops; this only prevents cross-session misroutes.
 if [ -n "$EARLY_SESSION_SHORT" ] && [ -f "$ACTIVE_STATUS" ]; then
   if ! grep -qE "^(current_session|session_id):[[:space:]]*${EARLY_SESSION_SHORT}\b" "$ACTIVE_STATUS" 2>/dev/null; then
-    echo "[PAS] Stop hook: resolved workspace ${ACTIVE_STATUS} does not bind session ${EARLY_SESSION_SHORT} — skipping completion gate (would have misrouted to a sibling workspace)" >&2
+    # Silent skip (cycle-18). The cross-session misroute would have demanded
+    # feedback at a sibling workspace — exit 0 quietly instead. The owning
+    # session's gate still fires when that session stops; this only prevents
+    # cross-session misroutes (#162, #160).
     exit 0
   fi
 fi
@@ -58,7 +61,11 @@ fi
 # (cycle-16) still skip first. This check only fires when binding matches.
 if [ -f "$ACTIVE_STATUS" ]; then
   if ! grep -qE '^[[:space:]]+status:[[:space:]]*(in_progress|completed)[[:space:]]*$' "$ACTIVE_STATUS" 2>/dev/null; then
-    echo "[PAS] Stop hook: resolved workspace ${ACTIVE_STATUS} has no advanced phases — skipping completion gate (orchestrator-side binding without phase work; see doctrines.md → Phase Advancement Test)" >&2
+    # Silent skip (cycle-18). No phase advanced past `pending`; the session
+    # did no PAS work even if `current_session:` matches. Exit 0 quietly so
+    # conversational yields in long-running maintainer-style workspaces don't
+    # add stderr noise on every turn. Doctrine: Phase Advancement Test in
+    # library/orchestration/doctrines.md.
     exit 0
   fi
 fi
@@ -160,5 +167,7 @@ ABS_EXPECTED="${ABS_FEEDBACK_DIR}/${EXPECTED_FILE}"
   echo "If your cwd differs from PAS_PROJECT_ROOT (e.g. running inside a git"
   echo "worktree), write the file at the absolute path above — the hook"
   echo "always checks that exact path."
+  echo ""
+  pas_version_footer
 } >&2
 exit 2

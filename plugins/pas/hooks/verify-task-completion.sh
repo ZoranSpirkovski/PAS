@@ -46,6 +46,7 @@ Cannot complete "Self-evaluation" task: ${FEEDBACK_DIR}/${EXPECTED} does not exi
 Write your self-evaluation to this file before marking the task complete.
 Use \${CLAUDE_PLUGIN_ROOT}/library/self-evaluation/SKILL.md for the format.
 EOF
+      pas_version_footer >&2
       exit 2
     fi
     ;;
@@ -62,6 +63,7 @@ Update ${ACTIVE_STATUS}:
 - Set top-level status to "completed"
 - Set completed_at to current ISO timestamp
 EOF
+      pas_version_footer >&2
       exit 2
     fi
     ;;
@@ -74,6 +76,7 @@ Cannot complete "Initialize workspace" task: workspace feedback directory does n
 Create the workspace directory structure:
   mkdir -p ${ACTIVE_WORKSPACE}/{discovery,planning,execution/changes,validation,feedback}
 EOF
+      pas_version_footer >&2
       exit 2
     fi
     ;;
@@ -123,6 +126,7 @@ Each path under the phase's output_files: list in status.yaml must exist
 on disk before this task can be marked complete. See:
   library/orchestration/lifecycle.md (phase output_files contract)
 EOF
+        pas_version_footer >&2
         exit 2
       fi
     fi
