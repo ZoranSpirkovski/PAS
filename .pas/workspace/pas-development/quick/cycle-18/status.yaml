@@ -1,0 +1,73 @@
+process: pas-development
+instance: cycle-18
+slug: cycle-18
+session_id: fb520104
+current_session: fb520104
+started_at: 2026-04-28
+completed_at: 2026-04-28
+mode: edit
+status: completed
+
+pr_url: https://github.com/ZoranSpirkovski/PAS/pull/204
+release_pr_url: https://github.com/ZoranSpirkovski/PAS/pull/205
+plugin_version: 1.4.3
+
+framework_signals_filed:
+  - id: OQI-02
+    issue: https://github.com/ZoranSpirkovski/PAS/issues/206
+    title: Release phase should generate TWO tasks (feature→dev + dev→main), not one
+
+directive: |
+  Quiet the Stop hook — gate-skip paths must produce no stderr.
+
+  Cycle-17 made the gate skip the demand when no phase advanced, but
+  the skip itself prints a "[PAS] Stop hook: ... — skipping completion
+  gate" message to stderr. In a conversational session (e.g. a long-
+  running maintainer-style workspace where every Claude yield triggers
+  Stop), that stderr appears on every turn alongside "Ran 3 stop hooks"
+  cluster. The conversation visually derails even though the gate is
+  technically doing the right thing.
+
+  Real fix: silent skip. When the gate decides not to fire, exit 0 with
+  no output. Audit route-feedback.sh and any other Stop-fired hook for
+  similar no-op stderr noise.
+
+  Plus: small diagnostic improvement — hooks write a one-line debug
+  marker to /tmp/pas-hook-<pid>.log so the user can confirm which
+  plugin version actually fired without needing CLAUDE_PLUGIN_ROOT to
+  be visible in their shell.
+
+phases:
+  discovery:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - discovery/priorities.md
+  planning:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - planning/implementation-plan.md
+  execution:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - execution/changes/
+  validation:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - validation/report.md
+  release:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - https://github.com/ZoranSpirkovski/PAS/pull/204
+      - https://github.com/ZoranSpirkovski/PAS/pull/205
+    notes: "PR #204 (feature → dev) merged as 0c937ec. PR #205 (dev → main) merged as a259ccf. Plugin 1.4.2 → 1.4.3. main and dev synced."
+
+sessions:
+  - id: fb520104
+    started_at: 2026-04-28
+    completed_at: 2026-04-28
+    feedback_collected: true
