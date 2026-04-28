@@ -1,0 +1,52 @@
+process: pas-development-quick
+instance: cycle-16
+started_at: 2026-04-28T12:05:36Z
+completed_at: ~
+status: in_progress
+current_session: 885426fe
+
+directive: |
+  Fix the hook substrate concurrency cluster:
+  #173 SessionStart auto-binds fresh sessions to wrong workspace under concurrent worktrees
+  #174 Emit parseable PAS_WORKSPACE_MISMATCH=<slug> for hard-gate enforcement
+  #162 Stop hook resolves to sibling worktree's workspace under parallel runs (mtime fallback misroute)
+  #160 [Feedback] OQI-03: Stop hook completion gate misrouted to sibling worktree
+  #156 Hook substrate three secondary issues (route-feedback CWD recursion, SessionStart current_session overwrite, missing local: namespace)
+  #155 Hook workspace resolver should match session_id field, not current_session
+
+doctrines:
+  - N/N+1 Protocol — hook substrate change. Ship in cycle 16, validate live in cycle 17 from a fresh session.
+  - Dogfooding Hazard Awareness — sequence substrate-mutating commits late; do not re-exercise modified hook paths mid-cycle.
+
+phases:
+  discovery:
+    status: pending
+    agent: orchestrator
+    output_files:
+      - discovery/priorities.md
+  planning:
+    status: pending
+    agent: orchestrator
+    output_files:
+      - planning/implementation-plan.md
+  execution:
+    status: pending
+    agent: orchestrator
+    output_files:
+      - execution/changes/
+  validation:
+    status: pending
+    agent: orchestrator
+    output_files:
+      - validation/report.md
+  release:
+    status: pending
+    agent: orchestrator
+    output_files:
+      - validation/report.md
+
+sessions:
+  - id: 885426fe
+    started_at: 2026-04-28T12:05:36Z
+    completed_at: ~
+    feedback_collected: false
