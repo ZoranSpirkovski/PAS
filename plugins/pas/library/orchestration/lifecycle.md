@@ -25,7 +25,11 @@ Write `.pas/workspace/{process}/{slug}/status.yaml` with all phases as `pending`
 
 ### Session Binding Contract
 
-When a skill or process **creates** or **claims** a workspace, it MUST write the session binding into status.yaml itself. The SessionStart hook will NOT auto-bind a fresh session to an existing in-progress workspace (would cause cross-worktree clobbering — see issue #173).
+When a skill or process **creates** a workspace (mkdirs the workspace path) or **resumes** a workspace whose phases this session is about to advance, it MUST write the session binding into status.yaml itself. "Resume" means: this session is going to read pending phases and execute them. It does NOT mean "I see the workspace exists, so I should register here."
+
+A fresh session that is *not* advancing any phase in an existing workspace MUST NOT modify that workspace's `status.yaml` — even if a hook output mentions the workspace exists. Read-only inspection is fine; writes (appending to `sessions:`, setting `current_session:`, adding "off-topic" notes at stop time) are not. See `doctrines.md` → Workspace Binding Is Skill-Owned → Phase Advancement Test.
+
+The SessionStart hook will NOT auto-bind a fresh session to an existing in-progress workspace (would cause cross-worktree clobbering — see issue #173).
 
 The binding consists of two writes to the workspace's status.yaml:
 
@@ -119,7 +123,7 @@ sessions:
     feedback_collected: {true or false}
 ```
 
-**Session tracking:** The `pas-session-start.sh` hook automatically writes `current_session` and appends to the `sessions` list when a session begins. Feedback files are named `feedback/orchestrator-{session_id}.md` so the Stop hook can verify that THIS session (not a previous one) produced feedback.
+**Session tracking:** The `pas-session-start.sh` hook refreshes `current_session:` only when the session id is already in the `sessions:` list (true reconnect). Initial binding is the responsibility of the skill that creates or resumes the workspace — see Session Binding Contract above. Feedback files are named `feedback/orchestrator-{session_id}.md` so the Stop hook can verify that THIS session (not a previous one) produced feedback.
 
 Sub-processes write their own status.yaml. Parent references via `subprocess: {path}/status.yaml`.
 
@@ -155,7 +159,7 @@ If any condition is not met, the session is NOT complete. Go back and satisfy th
 
 When the product owner provides a pre-built plan or directs work outside a formal process invocation, the shutdown sequence still applies. Specifically:
 
-1. If a workspace exists for the current cycle, use it — do not create a new one
+1. If a workspace exists **for the same process and instance** the user is asking you to continue, use it — do not create a new one. If an unrelated in-progress workspace exists for a different process, leave it alone — do not register the session there or add notes at stop time. (See `doctrines.md` → Workspace Binding Is Skill-Owned → Phase Advancement Test.)
 2. Create lifecycle tasks for shutdown steps (`[PAS] Self-evaluation`, `[PAS] Route framework signals`, `[PAS] Finalize status`)
 3. After all work is done, follow the full Shutdown Sequence above
 
