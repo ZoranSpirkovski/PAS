@@ -1,5 +1,15 @@
 # Orchestration Library Changelog
 
+## 2026-04-28 — Cycle 17 / 1.4.2: Phase Advancement Test doctrine + Session Binding Contract rewrite
+
+Triggered by: orchestrator-side session-binding recurrence after the cycle-16 hook fix (see hooks/changelog.md → Cycle 17). The hook code held; the docs still pushed orchestrators and skill authors to bind fresh sessions in workspaces they didn't own.
+
+Changes:
+- `doctrines.md` — `Workspace Binding Is Skill-Owned` extended with **Phase Advancement Test**: bind only if this session is about to advance a phase in this workspace. "I see an in-progress workspace and I should register myself somewhere" is not a reason to bind. Origin section cites the consumer-side `pas-misrouted-and-migration-ts` recurrence.
+- `lifecycle.md` — Session Binding Contract rewritten: the word "claims" is replaced with a concrete two-clause definition (creates the workspace, OR resumes a workspace whose phases this session is about to advance). Added explicit prohibition on writes by fresh sessions running unrelated work.
+- `lifecycle.md` — Session tracking paragraph (formerly L122) corrected to reflect 1.4.1+ hook behavior — the hook only refreshes `current_session:` on true reconnect; initial binding is the skill's responsibility.
+- `lifecycle.md` — Ad-Hoc Execution step 1 qualified: "use existing workspace" applies only when the workspace is for the same process and instance. Unrelated in-progress workspaces stay untouched.
+
 ## 2026-03-08 — Extract shared lifecycle protocol + ready-handshake
 
 Triggered by: Cycle 9 Milestone 1 — orchestration pattern duplication (~300 of 578 lines identical)

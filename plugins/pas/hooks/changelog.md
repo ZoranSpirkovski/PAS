@@ -1,5 +1,15 @@
 # Hooks Changelog
 
+## 2026-04-28 — Cycle 17 / 1.4.2: Orchestrator-Side Session Binding
+
+Triggered by recurrence of the cycle-16 cluster: even after 1.4.1 closed the hook-side auto-bind path, the bug reappeared in a consumer transcript (`pas-misrouted-and-migration-ts` in Tangled-Roots-V1). Root cause was orchestrator-side and consumer-skill-side writes to `current_session:` / `sessions:` for fresh sessions in workspaces they were not advancing — the hook's protections were sound, but the docs and SessionStart wording still encouraged manual binding. Two surgical changes plus doctrine; harness 142 → 148 (+3 new C17 wording asserts, +3 new C17 phase-advancement gate tests).
+
+**pas-session-start.sh** — STARTUP block reworded from unconditional "you MUST follow this lifecycle" to "When you are about to start a new PAS process, advance a phase in an existing in-progress one, or run an ad-hoc plan that produces phase outputs, follow this lifecycle". The unbound-fresh-session branch now ends with explicit prohibitions: "DO NOT register this session", "DO NOT add a 'sessions:' entry", "Only the skill that owns the workspace may modify it." Fixes the orchestrator's path-of-least-resistance reading that previously led to "off-topic" notes accumulating in foreign workspaces.
+
+**verify-completion-gate.sh** — phase-advancement sanity check. After the cycle-16 binding-match check, a new check skips the gate when no phase under `phases:` has its `status:` set to anything other than `pending` (i.e. nothing actually advanced during this session). Belt-and-suspenders against the same misroute pattern when a skill correctly binds a session that then ends without doing phase work. Runs after the binding-match check so cross-worktree mtime misroutes still skip first.
+
+**Doctrine:** N/N+1 protocol applies. Static + harness validation in 17; live behavior validation in cycle 18 from a fresh session in a consumer project.
+
 ## 2026-04-28 — Cycle 16 / 1.4.1: Hook Substrate Concurrency Cluster
 
 Triggered by issue cluster #173, #174, #162, #160, #156, #155 — all rooted in the same substrate race: hooks misroute to the wrong workspace under concurrent worktree/session runs. Five surgical fixes; harness 130 → 142 (+8 new C16 tests, +4 reframed session-start tests).

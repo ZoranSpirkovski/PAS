@@ -46,6 +46,23 @@ if [ -n "$EARLY_SESSION_SHORT" ] && [ -f "$ACTIVE_STATUS" ]; then
   fi
 fi
 
+# Phase-advancement sanity check (cycle-17). Belt-and-suspenders against
+# orchestrator-side or skill-side bindings to in_progress workspaces where
+# no phase actually advanced during this session. If every phase under
+# `phases:` is still `pending`, this session did no PAS work even though
+# `current_session:` matches — likely the orchestrator-side binding pattern
+# the cycle-17 doctrine forbids. Skip the gate; the owning skill, when it
+# eventually advances a phase, will own the feedback obligation.
+#
+# Runs after the binding-match check above so cross-worktree mtime misroutes
+# (cycle-16) still skip first. This check only fires when binding matches.
+if [ -f "$ACTIVE_STATUS" ]; then
+  if ! grep -qE '^[[:space:]]+status:[[:space:]]*(in_progress|completed)[[:space:]]*$' "$ACTIVE_STATUS" 2>/dev/null; then
+    echo "[PAS] Stop hook: resolved workspace ${ACTIVE_STATUS} has no advanced phases — skipping completion gate (orchestrator-side binding without phase work; see doctrines.md → Phase Advancement Test)" >&2
+    exit 0
+  fi
+fi
+
 # Defense-in-depth: if workspace is already completed, don't block (Issue #23)
 TOP_STATUS=$(grep '^status:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}')
 if [ "$TOP_STATUS" = "completed" ]; then

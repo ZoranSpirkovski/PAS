@@ -76,7 +76,7 @@ cat <<EOF
 PAS Framework Active (feedback: ${FEEDBACK_STATUS})
 ${SESSION_CONTEXT}
 
-Whether running a formal PAS process or executing an ad-hoc plan, you MUST follow this lifecycle:
+When you are about to start a new PAS process, advance a phase in an existing in-progress one, or run an ad-hoc plan that produces phase outputs, follow this lifecycle:
 
 STARTUP (before any work):
 1. Create workspace: mkdir -p .pas/workspace/{process}/{slug}/{discovery,planning,execution/changes,validation,feedback}
@@ -157,6 +157,12 @@ if [ -n "$ACTIVE_STATUS" ]; then
     echo "  Process: ${PROCESS_NAME}/${INSTANCE}"
     echo "  This session is NOT bound to it. To resume, invoke the matching"
     echo "  skill (e.g. /v2-agency-delivery <slug>) which will re-bind."
+    echo ""
+    echo "  DO NOT register this session in this workspace's status.yaml."
+    echo "  DO NOT add a 'sessions:' entry, set 'current_session:', or write"
+    echo "  an 'off-topic' note at stop time. If your work is unrelated, this"
+    echo "  workspace stays unchanged. Only the skill that owns the workspace"
+    echo "  may modify it."
   else
     echo "Active workspace: ${PROCESS_NAME}/${INSTANCE} (status: ${TOP_STATUS})"
     echo "Path: ${ACTIVE_WORKSPACE}"
