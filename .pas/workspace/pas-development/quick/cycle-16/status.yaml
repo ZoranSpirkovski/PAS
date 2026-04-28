@@ -1,8 +1,8 @@
 process: pas-development-quick
 instance: cycle-16
 started_at: 2026-04-28T12:05:36Z
-completed_at: ~
-status: in_progress
+completed_at: 2026-04-28T12:24:12Z
+status: completed
 current_session: 885426fe
 
 directive: |
@@ -15,38 +15,66 @@ directive: |
   #155 Hook workspace resolver should match session_id field, not current_session
 
 doctrines:
-  - N/N+1 Protocol — hook substrate change. Ship in cycle 16, validate live in cycle 17 from a fresh session.
-  - Dogfooding Hazard Awareness — sequence substrate-mutating commits late; do not re-exercise modified hook paths mid-cycle.
+  - N/N+1 Protocol — hook substrate change. Shipped in cycle 16; validate live in cycle 17 from a fresh session per N+1 checklist in validation/report.md.
+  - Dogfooding Hazard Awareness — substrate-mutating commits sequenced before docs/version. Cycle dogfood incident at shutdown filed as OQI-01 / issue #182.
 
 phases:
   discovery:
-    status: pending
+    status: completed
     agent: orchestrator
     output_files:
       - discovery/priorities.md
+    quality:
+      score: 9
+      notes: "Cluster collapsed to one root cause cleanly. Correctly identified two unrelated path bugs in route-feedback.sh as separate but in scope."
   planning:
-    status: pending
+    status: completed
     agent: orchestrator
     output_files:
       - planning/implementation-plan.md
+    quality:
+      score: 9
+      notes: "7-step ordered fix list with N/N+1 + dogfooding constraints captured. Test coverage planned per issue."
   execution:
-    status: pending
+    status: completed
     agent: orchestrator
     output_files:
-      - execution/changes/
+      - execution/changes/SUMMARY.md
+    quality:
+      score: 9
+      notes: "5 hook-substrate fixes, 4 docs updates, version bump. Test harness 130 → 142. All bash -n syntax checks pass."
   validation:
-    status: pending
+    status: completed
     agent: orchestrator
     output_files:
       - validation/report.md
+    quality:
+      score: 8
+      notes: "Static + harness validation per N/N+1. N+1 live checklist prepared. Cycle dogfooded the very bug being fixed at shutdown — captured as OQI-01."
   release:
-    status: pending
+    status: completed
     agent: orchestrator
     output_files:
       - validation/report.md
+    quality:
+      score: 9
+      notes: "PR #181 opened against dev. 3 atomic commits on feature branch. Workspace artifacts on dev directly per CLAUDE.md."
+
+pr_url: https://github.com/ZoranSpirkovski/PAS/pull/181
+
+framework_signals_filed:
+  - id: OQI-01
+    issue: https://github.com/ZoranSpirkovski/PAS/issues/182
+    title: verify-task-completion.sh treats PR URLs as filesystem paths + falls back to wrong workspace under mtime
+  - id: OQI-02
+    issue: https://github.com/ZoranSpirkovski/PAS/issues/183
+    title: workspace artifacts split across branches creates dogfooding hazard
+  - id: OQI-03
+    issue: https://github.com/ZoranSpirkovski/PAS/issues/184
+    title: output_files enforcement is opt-in despite lifecycle.md treating it as canonical
 
 sessions:
   - id: 885426fe
     started_at: 2026-04-28T12:05:36Z
-    completed_at: ~
-    feedback_collected: false
+    completed_at: 2026-04-28T12:24:12Z
+    feedback_collected: true
