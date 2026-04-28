@@ -56,6 +56,29 @@ resolve_claude_plugin_root() {
   return 2
 }
 
+# One-line attribution footer for use inside demand/block stderr messages.
+# Echoes "(PAS plugin X.Y.Z, install: <path>)" so users (or another Claude
+# session) can tell which plugin version emitted a given block — closes the
+# diagnostic gap from cycle-17/18 where the stop hook fired but we couldn't
+# tell which install was actually loaded. Safe to call after
+# resolve_claude_plugin_root() succeeds; emits nothing if the plugin.json
+# can't be read.
+pas_version_footer() {
+  local plugin_json version
+  plugin_json="${CLAUDE_PLUGIN_ROOT:-}/.claude-plugin/plugin.json"
+  if [ ! -f "$plugin_json" ]; then
+    return 0
+  fi
+  if command -v jq >/dev/null 2>&1; then
+    version=$(jq -r '.version // empty' "$plugin_json" 2>/dev/null)
+  else
+    version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$plugin_json" | head -1)
+  fi
+  if [ -n "$version" ]; then
+    echo "(PAS plugin ${version}, install: ${CLAUDE_PLUGIN_ROOT})"
+  fi
+}
+
 # Resolve the marketplace root by walking up from a candidate cwd until
 # .claude-plugin/marketplace.json is found. Echoes the resolved root on
 # stdout; returns non-zero if no marketplace is found.
