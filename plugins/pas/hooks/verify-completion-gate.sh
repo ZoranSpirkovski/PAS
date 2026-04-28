@@ -24,6 +24,28 @@ fi
 guard_feedback_enabled || exit 0
 guard_active_workspace "$SCRIPT_DIR" || exit 0
 
+# Derive short session ID early so we can sanity-check the resolved workspace
+# binding (#162, #160). The full SESSION_SHORT computation happens again below
+# (kept for the fallback-from-status.yaml path); this early derivation is just
+# the input-side id, used solely to detect mtime-fallback misroutes.
+EARLY_SESSION_SHORT=""
+if [ -n "$SESSION_ID" ]; then
+  EARLY_SESSION_SHORT=$(echo "$SESSION_ID" | cut -c1-8)
+fi
+
+# Sanity check: if SESSION_ID was provided AND the resolved workspace's
+# binding field does NOT match this session id, the resolver fell through to
+# mtime fallback and we're about to demand feedback at a sibling worktree's
+# workspace. Warn and skip the gate rather than block shutdown on the wrong
+# path (#162, #160). The owning session's gate still fires when that session
+# stops; this only prevents cross-session misroutes.
+if [ -n "$EARLY_SESSION_SHORT" ] && [ -f "$ACTIVE_STATUS" ]; then
+  if ! grep -qE "^(current_session|session_id):[[:space:]]*${EARLY_SESSION_SHORT}\b" "$ACTIVE_STATUS" 2>/dev/null; then
+    echo "[PAS] Stop hook: resolved workspace ${ACTIVE_STATUS} does not bind session ${EARLY_SESSION_SHORT} — skipping completion gate (would have misrouted to a sibling workspace)" >&2
+    exit 0
+  fi
+fi
+
 # Defense-in-depth: if workspace is already completed, don't block (Issue #23)
 TOP_STATUS=$(grep '^status:' "$ACTIVE_STATUS" | head -1 | awk '{print $2}')
 if [ "$TOP_STATUS" = "completed" ]; then
