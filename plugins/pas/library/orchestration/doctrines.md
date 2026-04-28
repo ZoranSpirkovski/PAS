@@ -44,6 +44,20 @@ Cross-cycle operating rules that protect PAS from known failure modes. Each doct
 
 **How to apply:** See `discussion.md` → Data Verification Norm for the operational checklist. This doctrine is the top-level rule; `discussion.md` is the enforcement recipe.
 
+## Workspace Binding Is Skill-Owned
+
+**Rule:** Skills and processes that create or claim a workspace MUST write the session binding (`current_session:` or `session_id:` plus a `sessions:` entry) into status.yaml at workspace-creation time. The SessionStart hook will NOT auto-bind a fresh session to an existing in-progress workspace — auto-bind under concurrent worktrees clobbers sibling workspaces' bindings and triggers Stop-gate misroutes.
+
+**Why:** Cycle-16 cluster (#173, #174, #162, #160, #156, #155). Auto-bind was the original behavior; with concurrent worktrees becoming common (1.4.0+), every new session was clobbering the most-recently-touched in-progress workspace's `current_session:`. The Stop hook then demanded feedback from sessions that never ran any phase, and the resolver's mtime fallback produced cross-worktree gate misroutes.
+
+**How to apply:**
+
+- **Skill authors:** when your skill calls `mkdir -p .pas/workspace/...`, also write `current_session:` and append the session id to the `sessions:` list. See `library/orchestration/lifecycle.md` → Session Binding Contract for the schema.
+- **Reconnect detection:** SessionStart still refreshes `current_session:` automatically when the session id is already in the `sessions:` list. No skill action required for reconnects.
+- **Mismatch gating:** when a skill orchestrates worktrees (e.g. `--worktree next` style commands), grep for `PAS_WORKSPACE_MISMATCH=` in the SessionStart output before reading any other disk state, and surface a resume/skip/abort choice. The English warning is for humans; the parseable line is the contract.
+
+**Scope boundary:** processes that don't create workspaces (e.g. read-only orchestrators that only consume status from existing workspaces) are unaffected. PAS-internal processes already write status.yaml at startup per the lifecycle.md spec — they are compliant by construction.
+
 ## Adding New Doctrines
 
 New doctrines get added here when a cross-cycle pattern becomes a rule. Each doctrine must:

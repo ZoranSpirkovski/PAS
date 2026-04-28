@@ -77,19 +77,22 @@ resolve_target_path() {
   # Tier 3: consumer-local .pas/processes tree (legacy; transitional
   # backward-compat for consumers/cycles that still carry process copies).
   # Removed in a future cycle once downstream has migrated.
+  # Anchor to PAS_PROJECT_ROOT (not CWD) so subagent CWDs under .pas/workspace/
+  # don't silently drop signals to "Unknown target" (#156 issue 3).
+  local tier3_root="${PAS_PROJECT_ROOT:-$CWD}"
   case "$type" in
     process)
-      if [ -d "$CWD/$PAS_ROOT/processes/$value/feedback/backlog" ]; then
-        found="$CWD/$PAS_ROOT/processes/$value/feedback/backlog"
+      if [ -d "$tier3_root/$PAS_ROOT/processes/$value/feedback/backlog" ]; then
+        found="$tier3_root/$PAS_ROOT/processes/$value/feedback/backlog"
       fi
       ;;
     agent)
-      found=$(find "$CWD/$PAS_ROOT/processes" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+      found=$(find "$tier3_root/$PAS_ROOT/processes" -path "*/agents/$value/feedback/backlog" -type d 2>/dev/null | head -1)
       ;;
     skill)
-      found=$(find "$CWD/$PAS_ROOT/processes" -path "*/skills/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+      found=$(find "$tier3_root/$PAS_ROOT/processes" -path "*/skills/$value/feedback/backlog" -type d 2>/dev/null | head -1)
       if [ -z "$found" ]; then
-        found=$(find "$CWD/$PAS_ROOT/library" -path "*/$value/feedback/backlog" -type d 2>/dev/null | head -1)
+        found=$(find "$tier3_root/$PAS_ROOT/library" -path "*/$value/feedback/backlog" -type d 2>/dev/null | head -1)
       fi
       ;;
   esac
@@ -256,8 +259,12 @@ parse_and_route_signals() {
         elif [ -n "$target_path" ]; then
           route_signal "$current_signal" "$current_id" "$source_name" "$target_path"
         else
-          mkdir -p "$CWD/$PAS_ROOT/feedback"
-          echo "[$(date -Iseconds)] WARNING: Unknown target '$current_target'" >> "$CWD/$PAS_ROOT/feedback/warnings.log" 2>/dev/null || true
+          # Anchor warnings.log to PAS_PROJECT_ROOT (not CWD) so subagent CWDs
+          # under .pas/workspace/<X>/ don't create recursive .pas/.pas/ paths
+          # (#156 issue 1).
+          local warn_root="${PAS_PROJECT_ROOT:-$CWD}"
+          mkdir -p "$warn_root/$PAS_ROOT/feedback"
+          echo "[$(date -Iseconds)] WARNING: Unknown target '$current_target'" >> "$warn_root/$PAS_ROOT/feedback/warnings.log" 2>/dev/null || true
         fi
       fi
 

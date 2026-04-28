@@ -39,29 +39,29 @@ if guard_active_workspace "$SCRIPT_DIR"; then
   true
 fi
 
-# Record session in status.yaml (if active workspace exists)
+# Record session in status.yaml ONLY for true reconnects.
+#
+# Concurrency fix (#173, #156 issue 2): previously this block auto-bound any
+# fresh session to whichever in_progress workspace had the most recent mtime
+# (via Pass 1 of find_active_workspace_status). With multiple concurrent
+# worktrees, every new session would clobber `current_session:` on the wrong
+# workspace and the stop gate would later demand feedback from sessions that
+# never touched the work. A fresh session must NOT auto-bind — skills (e.g.
+# `/v2-agency-delivery`) bind explicitly when they create or claim a workspace,
+# per the Session Binding Contract in library/orchestration/lifecycle.md.
+#
+# True-reconnect detection: this session id is already in the workspace's
+# `sessions:` list. In that case, refresh `current_session:` so the Stop gate
+# keeps tracking the live session. Otherwise leave the workspace untouched.
+SESSION_BOUND=false
 if [ -n "$ACTIVE_STATUS" ] && [ -n "$SESSION_SHORT" ]; then
-  TIMESTAMP=$(date -Iseconds)
-
-  # Write current_session marker
-  if grep -q '^current_session:' "$ACTIVE_STATUS" 2>/dev/null; then
-    sed -i "s/^current_session:.*/current_session: ${SESSION_SHORT}/" "$ACTIVE_STATUS"
-  else
-    echo "current_session: ${SESSION_SHORT}" >> "$ACTIVE_STATUS"
-  fi
-
-  # Append to sessions list if not already recorded
-  if ! grep -q "id: ${SESSION_SHORT}" "$ACTIVE_STATUS" 2>/dev/null; then
-    if ! grep -q '^sessions:' "$ACTIVE_STATUS" 2>/dev/null; then
-      echo "" >> "$ACTIVE_STATUS"
-      echo "sessions:" >> "$ACTIVE_STATUS"
+  if grep -q "id: ${SESSION_SHORT}" "$ACTIVE_STATUS" 2>/dev/null; then
+    SESSION_BOUND=true
+    if grep -q '^current_session:' "$ACTIVE_STATUS" 2>/dev/null; then
+      sed -i "s/^current_session:.*/current_session: ${SESSION_SHORT}/" "$ACTIVE_STATUS"
+    else
+      echo "current_session: ${SESSION_SHORT}" >> "$ACTIVE_STATUS"
     fi
-    cat >> "$ACTIVE_STATUS" <<EOF
-  - id: ${SESSION_SHORT}
-    started_at: ${TIMESTAMP}
-    completed_at: ~
-    feedback_collected: false
-EOF
   fi
 fi
 
@@ -141,11 +141,25 @@ if [ -n "$ACTIVE_STATUS" ]; then
     echo "  Continuing with derived values — fix status.yaml to silence this warning."
     echo ""
   fi
-  echo "Active workspace: ${PROCESS_NAME}/${INSTANCE} (status: ${TOP_STATUS})"
-  echo "Path: ${ACTIVE_WORKSPACE}"
-
-  if [ "$TOP_STATUS" = "in_progress" ]; then
-    echo "This session may be a continuation. Read status.yaml to determine where to resume."
+  if [ "$SESSION_BOUND" = "true" ]; then
+    echo "Active workspace: ${PROCESS_NAME}/${INSTANCE} (status: ${TOP_STATUS})"
+    echo "Path: ${ACTIVE_WORKSPACE}"
+    if [ "$TOP_STATUS" = "in_progress" ]; then
+      echo "This session is a reconnect. Read status.yaml to determine where to resume."
+    fi
+  elif [ "$TOP_STATUS" = "in_progress" ]; then
+    # Fresh session, but an in_progress workspace exists. Emit a parseable
+    # signal (#174) so downstream skills/hooks can hard-gate on the mismatch
+    # without parsing English. The plain-language warning follows for humans.
+    echo "PAS_WORKSPACE_MISMATCH=${INSTANCE}"
+    echo "PAS_WORKSPACE_MISMATCH_PATH=${ACTIVE_WORKSPACE}"
+    echo "Detected in-progress workspace at ${ACTIVE_WORKSPACE}"
+    echo "  Process: ${PROCESS_NAME}/${INSTANCE}"
+    echo "  This session is NOT bound to it. To resume, invoke the matching"
+    echo "  skill (e.g. /v2-agency-delivery <slug>) which will re-bind."
+  else
+    echo "Active workspace: ${PROCESS_NAME}/${INSTANCE} (status: ${TOP_STATUS})"
+    echo "Path: ${ACTIVE_WORKSPACE}"
   fi
 fi
 

@@ -1,5 +1,19 @@
 # Hooks Changelog
 
+## 2026-04-28 — Cycle 16 / 1.4.1: Hook Substrate Concurrency Cluster
+
+Triggered by issue cluster #173, #174, #162, #160, #156, #155 — all rooted in the same substrate race: hooks misroute to the wrong workspace under concurrent worktree/session runs. Five surgical fixes; harness 130 → 142 (+8 new C16 tests, +4 reframed session-start tests).
+
+**lib/workspace.sh** — `find_active_workspace_status` Pass 0 broadened to match either `current_session:` or `session_id:` field (#155). Backwards compatible; processes that already use the canonical field continue to match.
+
+**pas-session-start.sh** — fresh sessions no longer auto-bind to in-progress workspaces (#173, #156 issue 2). The hook now only refreshes `current_session:` when the session id is already in the workspace's `sessions:` list (true reconnect). Skills bind explicitly when they create or claim a workspace — see Session Binding Contract in `library/orchestration/lifecycle.md`. Display block updated: bound sessions see a "reconnect" message, fresh-but-unbound sessions see a "detected but not bound" message preceded by parseable `PAS_WORKSPACE_MISMATCH=<slug>` and `PAS_WORKSPACE_MISMATCH_PATH=<path>` lines (#174) so downstream skills/hooks can hard-gate without parsing English.
+
+**route-feedback.sh** — two CWD-anchoring bugs fixed (#156 issues 1 & 3). Warnings.log now anchors to `PAS_PROJECT_ROOT` instead of `$CWD` (eliminates recursive `.pas/.pas/feedback/` paths when subagent CWD is under `.pas/workspace/<X>/`). Tier 3 process/agent/skill resolution also uses `PAS_PROJECT_ROOT`, fixing silent "Unknown target" drops when subagents run from non-root CWDs.
+
+**verify-completion-gate.sh** — early sanity check (#162, #160). When `SESSION_ID` is provided AND the resolver-returned workspace's binding field does NOT match this session id (i.e., resolver fell through to mtime fallback), warn to stderr and `exit 0` instead of demanding feedback at a sibling worktree's path. The owning session's gate still fires when that session stops; this only prevents cross-session misroutes.
+
+**Doctrine:** N/N+1 protocol applies to this cycle. Static + harness validation in 16; live multi-worktree behavior validation deferred to cycle 17 from a fresh session.
+
 ## 2026-04-20 — Cycle 15 / Milestone 4: Marketplace-Authoritative
 
 Triggered by: issue #125 — PAS becomes a tool for maintaining user-controlled marketplaces of skills. Consumer projects hold only workspace state; skill definitions live in the marketplace; feedback flows back to the marketplace.
