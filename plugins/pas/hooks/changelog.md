@@ -1,5 +1,21 @@
 # Hooks Changelog
 
+## 2026-04-28 — Cycle 18 / 1.4.3: Quiet Stop Hook + Version Footer Diagnostic
+
+The cycle-17 fix made the gate stop *blocking* on conversational yields, but the skip itself was still announcing to stderr (`[PAS] Stop hook: ... — skipping`). In long-running maintainer-style workspaces every Claude yield triggered Stop → "Ran 3 stop hooks" header + per-hook stderr → conversation visually derailed even though the gate was technically correct. Cycle-18 makes every gate-skip path completely silent.
+
+**verify-completion-gate.sh** — silent skip on cross-session misroute (cycle-16 path) and on no-advanced-phases (cycle-17 path). Both `exit 0` with zero stderr. Demand block (real "COMPLETION GATE FAILED") unchanged in timing or content, plus a one-line `(PAS plugin X.Y.Z, install: <path>)` footer so the reader can tell which install fired the block.
+
+**check-self-eval.sh** — silent bypass when a substantive response is detected (the audit `INFO:` line is gone). Demand block ("agent shutting down without writing self-evaluation") unchanged plus the version footer.
+
+**verify-task-completion.sh** — version footer added to all four demand blocks (Self-evaluation, Finalize status, Initialize workspace, phase deliverables). No silencing changes — every demand here is a real block.
+
+**lib/guards.sh** — new helper `pas_version_footer()` reads version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and echoes the attribution line. Safe no-op if the manifest can't be read.
+
+Test harness 148 → 151 (3 re-pointed + 3 new C18 cases). Re-pointed C05-7 (substantive bypass), C16-5b (cross-session misroute), C17-1 (no-advanced-phases): skip paths now assert empty stderr instead of message content. New: C18-1 (gate footer), C18-2 (check-self-eval footer), C18-3 (verify-task-completion footer).
+
+Closes the diagnostic gap from cycle-17: when a user reports "the gate fired in my consumer", the demand block now self-attributes which plugin install emitted it. No more dependence on `${CLAUDE_PLUGIN_ROOT}` being visible in the user's shell.
+
 ## 2026-04-28 — Cycle 17 / 1.4.2: Orchestrator-Side Session Binding
 
 Triggered by recurrence of the cycle-16 cluster: even after 1.4.1 closed the hook-side auto-bind path, the bug reappeared in a consumer transcript (`pas-misrouted-and-migration-ts` in Tangled-Roots-V1). Root cause was orchestrator-side and consumer-skill-side writes to `current_session:` / `sessions:` for fresh sessions in workspaces they were not advancing — the hook's protections were sound, but the docs and SessionStart wording still encouraged manual binding. Two surgical changes plus doctrine; harness 142 → 148 (+3 new C17 wording asserts, +3 new C17 phase-advancement gate tests).

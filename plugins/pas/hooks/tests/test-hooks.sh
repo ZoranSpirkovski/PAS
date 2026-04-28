@@ -876,14 +876,24 @@ assert_stdout_contains "PAS Framework Active" \
   "C05-6: orchestrator SessionStart still injects lifecycle text"
 
 # T-C05-7: substantive last_assistant_message (>200 chars, no summary
-# keywords) → exits 0 with audit-line on stderr (#71 substantive bypass).
+# keywords) → exits 0 silently (#71 substantive bypass; cycle-18 made this
+# silent — was previously emitting an audit line).
 LONG_MSG="This is a long substantive review message that contains the actual findings the parent agent needs to receive. It deliberately avoids any of the boilerplate summary phrases that the bypass heuristic looks for, so the gate must let this through. The message is well over two hundred characters so the length check passes too."
 run_hook "check-self-eval.sh" \
   "{\"cwd\":\"$C05DIR\",\"agent_id\":\"framework-architect\",\"agent_type\":\"framework-architect\",\"last_assistant_message\":\"$LONG_MSG\"}" \
   0 "C05-7: substantive response → exit 0 (#71 bypass)"
 
-assert_stderr_contains "substantive response detected" \
-  "C05-7: stderr emits audit line so bypass is visible"
+# Cycle-18: bypass is silent. stderr must be empty (run_hook echoes
+# captured stderr to the file, adding a trailing newline even when empty;
+# compare via $() which strips trailing whitespace).
+if [ -z "$(cat /tmp/test-hook-stderr)" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C05-7: bypass exits silently (cycle-18, no stderr noise on conversational yields)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C05-7: bypass should be silent, but stderr was: $(cat /tmp/test-hook-stderr)")
+  printf "  ${RED}FAIL${RESET} C05-7: bypass emitted stderr (cycle-18 expected silent)\n"
+fi
 
 # T-C05-8: short summary boilerplate → still blocks (the bug we're fixing).
 # "Self-evaluation written. No issues detected during this review." is
@@ -1956,13 +1966,14 @@ phases:
 EOF
 OUT=$(echo "{\"cwd\":\"$C16DIR\",\"stop_hook_active\":false,\"session_id\":\"mineabc1xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" 2>&1)
 EXIT=$(echo "{\"cwd\":\"$C16DIR\",\"stop_hook_active\":false,\"session_id\":\"mineabc1xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" >/dev/null 2>&1; echo $?)
-if [ "$EXIT" = "0" ] && echo "$OUT" | grep -q "does not bind session mineabc1"; then
+# Cycle-18: cross-session misroute now exits silently — assert empty output.
+if [ "$EXIT" = "0" ] && [ -z "$OUT" ]; then
   PASS=$((PASS + 1))
-  printf "  ${GREEN}PASS${RESET} C16-5b: cross-session misroute warns and skips gate (#162, #160)\n"
+  printf "  ${GREEN}PASS${RESET} C16-5b: cross-session misroute silently skips gate (cycle-18 silent skip)\n"
 else
   FAIL=$((FAIL + 1))
-  ERRORS+=("C16-5b: expected exit 0 + warning, got exit $EXIT, out: $OUT")
-  printf "  ${RED}FAIL${RESET} C16-5b (exit: %s)\n" "$EXIT"
+  ERRORS+=("C16-5b: expected exit 0 + empty output, got exit $EXIT, out: $OUT")
+  printf "  ${RED}FAIL${RESET} C16-5b (exit: %s, out: %s)\n" "$EXIT" "$OUT"
 fi
 rm -rf "$C16DIR"
 
@@ -1999,13 +2010,14 @@ phases:
 EOF
 OUT=$(echo "{\"cwd\":\"$C17DIR\",\"stop_hook_active\":false,\"session_id\":\"c17abc12xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" 2>&1)
 EXIT=$(echo "{\"cwd\":\"$C17DIR\",\"stop_hook_active\":false,\"session_id\":\"c17abc12xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" >/dev/null 2>&1; echo $?)
-if [ "$EXIT" = "0" ] && echo "$OUT" | grep -q "no advanced phases"; then
+# Cycle-18: skip path is silent — assert empty output.
+if [ "$EXIT" = "0" ] && [ -z "$OUT" ]; then
   PASS=$((PASS + 1))
-  printf "  ${GREEN}PASS${RESET} C17-1: binding matches + all phases pending → gate skipped (cycle-17)\n"
+  printf "  ${GREEN}PASS${RESET} C17-1: binding matches + all phases pending → gate silently skipped (cycle-18)\n"
 else
   FAIL=$((FAIL + 1))
-  ERRORS+=("C17-1: expected exit 0 + 'no advanced phases' warning, got exit $EXIT, out: $OUT")
-  printf "  ${RED}FAIL${RESET} C17-1 (exit: %s)\n" "$EXIT"
+  ERRORS+=("C17-1: expected exit 0 + empty output, got exit $EXIT, out: $OUT")
+  printf "  ${RED}FAIL${RESET} C17-1 (exit: %s, out: %s)\n" "$EXIT" "$OUT"
 fi
 rm -rf "$C17DIR"
 
@@ -2070,6 +2082,107 @@ else
   printf "  ${RED}FAIL${RESET} C17-3 (exit: %s)\n" "$EXIT"
 fi
 rm -rf "$C17DIR"
+
+# =========================================================================
+# Section C18: silent skips + version footer on demand blocks
+# =========================================================================
+# Cycle-18: gate-skip paths must produce zero stderr (no "Ran 3 stop hooks"
+# expansion in the transcript on conversational yields). Demand blocks must
+# include a version footer so a reader can tell which install fired the
+# block.
+
+printf "\n${BOLD}15. C18 — silent skips & version footer${RESET}\n"
+
+# T-C18-1: gate demand block includes "(PAS plugin <ver>" footer.
+C18DIR=$(mktemp -d)
+mkdir -p "$C18DIR/.pas/workspace/proc/inst/feedback"
+cat > "$C18DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C18DIR/.pas/workspace/proc/inst/status.yaml" <<'EOF'
+process: proc
+instance: inst
+status: in_progress
+current_session: c18abcde
+
+phases:
+  discovery:
+    status: completed
+EOF
+OUT=$(echo "{\"cwd\":\"$C18DIR\",\"stop_hook_active\":false,\"session_id\":\"c18abcdexyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" 2>&1 || true)
+EXIT=$(echo "{\"cwd\":\"$C18DIR\",\"stop_hook_active\":false,\"session_id\":\"c18abcdexyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" >/dev/null 2>&1; echo $?)
+if [ "$EXIT" = "2" ] && echo "$OUT" | grep -q "(PAS plugin "; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C18-1: gate demand block includes version footer\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C18-1: expected exit 2 + '(PAS plugin ' footer, got exit $EXIT")
+  printf "  ${RED}FAIL${RESET} C18-1 (exit: %s)\n" "$EXIT"
+fi
+rm -rf "$C18DIR"
+
+# T-C18-2: check-self-eval demand block includes version footer.
+# Set up a workspace with feedback/ but no agent self-eval. The hook fires
+# when the agent stops without writing one.
+C18DIR=$(mktemp -d)
+mkdir -p "$C18DIR/.pas/workspace/proc/inst/feedback"
+cat > "$C18DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C18DIR/.pas/workspace/proc/inst/status.yaml" <<'EOF'
+process: proc
+instance: inst
+status: in_progress
+current_session: c18abcde
+
+phases:
+  discovery:
+    status: in_progress
+    agent: test-agent
+EOF
+# SubagentStop input shape: agent_id present, last_assistant_message short
+# enough to NOT trip the substantive-response bypass at L67.
+OUT=$(echo "{\"cwd\":\"$C18DIR\",\"agent_id\":\"test-agent\",\"last_assistant_message\":\"done\"}" | bash "$HOOKS_DIR/check-self-eval.sh" 2>&1 || true)
+EXIT=$(echo "{\"cwd\":\"$C18DIR\",\"agent_id\":\"test-agent\",\"last_assistant_message\":\"done\"}" | bash "$HOOKS_DIR/check-self-eval.sh" >/dev/null 2>&1; echo $?)
+if [ "$EXIT" = "2" ] && echo "$OUT" | grep -q "(PAS plugin "; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C18-2: check-self-eval demand block includes version footer\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C18-2: expected exit 2 + '(PAS plugin ' footer, got exit $EXIT, out: $OUT")
+  printf "  ${RED}FAIL${RESET} C18-2 (exit: %s)\n" "$EXIT"
+fi
+rm -rf "$C18DIR"
+
+# T-C18-3: verify-task-completion demand block (Self-evaluation task) includes
+# version footer. The hook fires when the user marks the lifecycle task
+# complete but the corresponding feedback file does not exist.
+C18DIR=$(mktemp -d)
+mkdir -p "$C18DIR/.pas/workspace/proc/inst/feedback"
+cat > "$C18DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C18DIR/.pas/workspace/proc/inst/status.yaml" <<'EOF'
+process: proc
+instance: inst
+status: in_progress
+current_session: c18abcde
+
+phases:
+  discovery:
+    status: completed
+EOF
+OUT=$(echo "{\"cwd\":\"$C18DIR\",\"task_subject\":\"[PAS] Self-evaluation\"}" | bash "$HOOKS_DIR/verify-task-completion.sh" 2>&1 || true)
+EXIT=$(echo "{\"cwd\":\"$C18DIR\",\"task_subject\":\"[PAS] Self-evaluation\"}" | bash "$HOOKS_DIR/verify-task-completion.sh" >/dev/null 2>&1; echo $?)
+if [ "$EXIT" = "2" ] && echo "$OUT" | grep -q "(PAS plugin "; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C18-3: verify-task-completion demand block includes version footer\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C18-3: expected exit 2 + '(PAS plugin ' footer, got exit $EXIT, out: $OUT")
+  printf "  ${RED}FAIL${RESET} C18-3 (exit: %s)\n" "$EXIT"
+fi
+rm -rf "$C18DIR"
 
 # =========================================================================
 # Summary
