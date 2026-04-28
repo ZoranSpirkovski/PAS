@@ -1,0 +1,76 @@
+process: pas-development
+instance: cycle-17
+slug: cycle-17
+session_id: fb520104
+current_session: fb520104
+started_at: 2026-04-28
+completed_at: 2026-04-28
+mode: edit
+status: completed
+
+pr_url: https://github.com/ZoranSpirkovski/PAS/pull/189
+plugin_version: 1.4.2
+
+framework_signals_filed:
+  - id: OQI-01
+    issue: https://github.com/ZoranSpirkovski/PAS/issues/190
+    title: Hook-substrate fixes must update human-readable layer (docs, hook output) in the same cycle
+  - id: OQI-02
+    issue: https://github.com/ZoranSpirkovski/PAS/issues/191
+    title: Build proper PAS testing framework (end-to-end lifecycle, multi-worktree concurrency, skill-side contract tests)
+  - id: OQI-03
+    issue: https://github.com/ZoranSpirkovski/PAS/issues/192
+    title: Hook-fix cycles — pre-commit guard against in-flight session writing to other workspaces
+
+directive: |
+  Fix orchestrator-side session binding to in_progress workspaces.
+  Cycle 16 closed the hook-side auto-bind path but the bug recurred in
+  consumer projects (transcript: INTERS3CT-LLC/Tangled-Roots-V1
+  process-maintainer workspace pas-misrouted-and-migration-ts). Root cause
+  is orchestrator-side or consumer-skill-side writes that append the fresh
+  session id to `sessions:` and set `current_session:` even though the
+  session never advances any phase. Pattern self-reinforces via accumulated
+  "off-topic — user pivoted to ..." notes in the same status.yaml.
+
+  Fix targets (1.4.2):
+    1. Doctrine: explicitly forbid binding a fresh session to an existing
+       in_progress workspace whose phases the session is not advancing.
+    2. SessionStart message: reword the unbound-fresh-session branch so it
+       reads as a hard "do not register your session here" instruction
+       instead of an implicit invitation to manage the foreign workspace.
+    3. (Optional) Stop-gate hardening: skip when no phase status mtime
+       advanced during this session.
+
+phases:
+  discovery:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - discovery/priorities.md
+  planning:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - planning/implementation-plan.md
+  execution:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - execution/changes/
+  validation:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - validation/report.md
+  release:
+    agent: orchestrator
+    status: completed
+    output_files:
+      - https://github.com/ZoranSpirkovski/PAS/pull/189
+    notes: "PR #189 squash-merged into dev as b6398ce. Plugin 1.4.1 → 1.4.2."
+
+sessions:
+  - id: fb520104
+    started_at: 2026-04-28
+    completed_at: 2026-04-28
+    feedback_collected: true

@@ -277,6 +277,19 @@ assert_stdout_contains "PAS_WORKSPACE_MISMATCH=cycle-1" \
 assert_stdout_contains "PAS_WORKSPACE_MISMATCH_PATH=" \
   "session-start (#174): emits parseable PAS_WORKSPACE_MISMATCH_PATH="
 
+# Cycle-17: hardened wording for the unbound-fresh-session branch.
+# The orchestrator-side binding bug recurred after 1.4.1 because the
+# SessionStart text told fresh sessions "you're not bound, invoke a skill"
+# without forbidding manual writes. The new wording makes the prohibition
+# explicit. See doctrines.md → Workspace Binding Is Skill-Owned → Phase
+# Advancement Test.
+assert_stdout_contains "DO NOT register this session" \
+  "session-start (cycle-17): unbound branch tells orchestrator not to register"
+assert_stdout_contains "DO NOT add a 'sessions:' entry" \
+  "session-start (cycle-17): unbound branch forbids appending to sessions: list"
+assert_stdout_contains "Only the skill that owns the workspace" \
+  "session-start (cycle-17): unbound branch attributes ownership to the owning skill"
+
 # Reconnect path: pre-seed the session id into the workspace's sessions list,
 # then re-run session-start and assert that current_session: IS now refreshed.
 cat >> "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" <<EOF
@@ -1952,6 +1965,111 @@ else
   printf "  ${RED}FAIL${RESET} C16-5b (exit: %s)\n" "$EXIT"
 fi
 rm -rf "$C16DIR"
+
+# =========================================================================
+# Section C17: orchestrator-side binding & phase-advancement gate
+# =========================================================================
+# Cycle-17 cluster: cycle-16 closed the hook-side auto-bind path, but the
+# bug recurred because orchestrators / consumer skills kept manually
+# writing `current_session:` and appending to `sessions:` for fresh
+# sessions in workspaces they weren't advancing. The phase-advancement
+# check in verify-completion-gate.sh is a belt-and-suspenders defense.
+
+printf "\n${BOLD}14. C17 — phase-advancement gate${RESET}\n"
+
+# T-C17-1: binding matches AND every phase still pending → gate skipped.
+# Simulates an orchestrator that wrote current_session: but never advanced
+# any phase — exactly the offending pattern from pas-misrouted-and-migration-ts.
+C17DIR=$(mktemp -d)
+mkdir -p "$C17DIR/.pas/workspace/proc/inst-pa/feedback"
+cat > "$C17DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C17DIR/.pas/workspace/proc/inst-pa/status.yaml" <<'EOF'
+process: proc
+instance: inst-pa
+status: in_progress
+current_session: c17abc12
+
+phases:
+  discovery:
+    status: pending
+  planning:
+    status: pending
+EOF
+OUT=$(echo "{\"cwd\":\"$C17DIR\",\"stop_hook_active\":false,\"session_id\":\"c17abc12xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" 2>&1)
+EXIT=$(echo "{\"cwd\":\"$C17DIR\",\"stop_hook_active\":false,\"session_id\":\"c17abc12xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" >/dev/null 2>&1; echo $?)
+if [ "$EXIT" = "0" ] && echo "$OUT" | grep -q "no advanced phases"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C17-1: binding matches + all phases pending → gate skipped (cycle-17)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C17-1: expected exit 0 + 'no advanced phases' warning, got exit $EXIT, out: $OUT")
+  printf "  ${RED}FAIL${RESET} C17-1 (exit: %s)\n" "$EXIT"
+fi
+rm -rf "$C17DIR"
+
+# T-C17-2: binding matches AND at least one phase completed AND no feedback
+# → gate fires. Confirms the new check did NOT break the normal path where
+# real work happened and feedback is genuinely missing.
+C17DIR=$(mktemp -d)
+mkdir -p "$C17DIR/.pas/workspace/proc/inst-pb/feedback"
+cat > "$C17DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C17DIR/.pas/workspace/proc/inst-pb/status.yaml" <<'EOF'
+process: proc
+instance: inst-pb
+status: in_progress
+current_session: c17def34
+
+phases:
+  discovery:
+    status: completed
+  planning:
+    status: completed
+EOF
+EXIT=$(echo "{\"cwd\":\"$C17DIR\",\"stop_hook_active\":false,\"session_id\":\"c17def34xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" >/dev/null 2>&1; echo $?)
+if [ "$EXIT" = "2" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C17-2: binding matches + phases completed + no feedback → gate fires\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C17-2: expected exit 2, got exit $EXIT")
+  printf "  ${RED}FAIL${RESET} C17-2 (exit: %s)\n" "$EXIT"
+fi
+rm -rf "$C17DIR"
+
+# T-C17-3: binding matches AND one phase in_progress + one pending AND no
+# feedback → gate skipped (pending short-circuit at L59 of verify-completion-gate.sh
+# fires; this also asserts the new phase-advancement check let it through).
+C17DIR=$(mktemp -d)
+mkdir -p "$C17DIR/.pas/workspace/proc/inst-pc/feedback"
+cat > "$C17DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C17DIR/.pas/workspace/proc/inst-pc/status.yaml" <<'EOF'
+process: proc
+instance: inst-pc
+status: in_progress
+current_session: c17ghi56
+
+phases:
+  discovery:
+    status: in_progress
+  planning:
+    status: pending
+EOF
+EXIT=$(echo "{\"cwd\":\"$C17DIR\",\"stop_hook_active\":false,\"session_id\":\"c17ghi56xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" >/dev/null 2>&1; echo $?)
+if [ "$EXIT" = "0" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C17-3: binding matches + mid-cycle (one in_progress, one pending) → gate skipped\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C17-3: expected exit 0, got exit $EXIT")
+  printf "  ${RED}FAIL${RESET} C17-3 (exit: %s)\n" "$EXIT"
+fi
+rm -rf "$C17DIR"
 
 # =========================================================================
 # Summary
