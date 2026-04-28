@@ -251,11 +251,47 @@ assert_stdout_contains "feedback: enabled" "session-start: outputs feedback stat
 assert_stdout_contains "CREATION ROUTING" "session-start: outputs creation routing instruction"
 assert_stdout_contains "DEVELOPMENT ROUTING" "session-start: outputs development routing instruction"
 
-assert_file_contains "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" \
-  "current_session: abc12345" "session-start: writes current_session to status.yaml"
+# NEW (cycle 16, #173): fresh sessions must NOT auto-bind to an existing
+# in_progress workspace. The status.yaml from setup has no `id: abc12345` in
+# its sessions list, so this session is fresh and the hook must leave the
+# workspace untouched. Skills bind explicitly when they create or claim a
+# workspace (Session Binding Contract, library/orchestration/lifecycle.md).
+if grep -q '^current_session:' "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("session-start (#173): fresh session auto-bound — current_session: was written")
+  printf "  ${RED}FAIL${RESET} session-start: fresh session auto-bound (regression of #173)\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} session-start: fresh session does NOT auto-bind (#173)\n"
+fi
+if grep -q "id: abc12345" "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" 2>/dev/null; then
+  FAIL=$((FAIL + 1))
+  ERRORS+=("session-start (#173): fresh session appended to sessions list")
+  printf "  ${RED}FAIL${RESET} session-start: fresh session appended to sessions list (regression of #173)\n"
+else
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} session-start: fresh session not appended to sessions list (#173)\n"
+fi
+assert_stdout_contains "PAS_WORKSPACE_MISMATCH=cycle-1" \
+  "session-start (#174): emits parseable PAS_WORKSPACE_MISMATCH= for unbound in_progress workspace"
+assert_stdout_contains "PAS_WORKSPACE_MISMATCH_PATH=" \
+  "session-start (#174): emits parseable PAS_WORKSPACE_MISMATCH_PATH="
 
+# Reconnect path: pre-seed the session id into the workspace's sessions list,
+# then re-run session-start and assert that current_session: IS now refreshed.
+cat >> "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" <<EOF
+
+sessions:
+  - id: abc12345
+    started_at: 2026-03-10T10:00:00+00:00
+    completed_at: ~
+    feedback_collected: false
+EOF
+run_hook "pas-session-start.sh" \
+  "{\"cwd\":\"$TESTDIR\",\"source\":\"resume\",\"session_id\":\"abc12345xyz\"}" \
+  0 "session-start (#173): reconnect runs cleanly"
 assert_file_contains "$TESTDIR/.pas/workspace/test/cycle-1/status.yaml" \
-  "id: abc12345" "session-start: appends session to sessions list"
+  "current_session: abc12345" "session-start: reconnect refreshes current_session"
 
 # =========================================================================
 # Section 4: verify-completion-gate.sh
@@ -1681,6 +1717,241 @@ else
   printf "  ${GREEN}PASS${RESET} C12-4: resolve_origin_marketplace fails cleanly without registry\n"
 fi
 rm -rf "$FAKE_HOME"
+
+# =========================================================================
+# Section C16: Hook substrate concurrency cluster
+# (#155, #156, #162, #173, #174 — see plugins/pas/hooks/changelog.md 1.4.1)
+# =========================================================================
+printf "\n${BOLD}13. C16 — concurrency cluster${RESET}\n"
+
+# T-C16-1a: workspace.sh Pass 0 matches `current_session:` (regression for #155 fix)
+C16DIR=$(mktemp -d)
+mkdir -p "$C16DIR/.pas/workspace/proc/inst-cs/feedback"
+cat > "$C16DIR/.pas/workspace/proc/inst-cs/status.yaml" <<'EOF'
+process: proc
+instance: inst-cs
+status: in_progress
+current_session: deadbeef
+EOF
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C16DIR/.pas/workspace' 'deadbeef'")
+if echo "$RESULT" | grep -q "inst-cs/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C16-1a: Pass 0 matches current_session: field (regression)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C16-1a: current_session: match failed (got: $RESULT)")
+  printf "  ${RED}FAIL${RESET} C16-1a (got: %s)\n" "$RESULT"
+fi
+rm -rf "$C16DIR"
+
+# T-C16-1b: workspace.sh Pass 0 matches `session_id:` field (#155 fix)
+C16DIR=$(mktemp -d)
+mkdir -p "$C16DIR/.pas/workspace/proc/inst-sid/feedback"
+cat > "$C16DIR/.pas/workspace/proc/inst-sid/status.yaml" <<'EOF'
+process: proc
+instance: inst-sid
+status: in_progress
+session_id: cafebabe
+EOF
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C16DIR/.pas/workspace' 'cafebabe'")
+if echo "$RESULT" | grep -q "inst-sid/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C16-1b: Pass 0 matches session_id: field (#155)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C16-1b: session_id: match failed (got: $RESULT)")
+  printf "  ${RED}FAIL${RESET} C16-1b (got: %s)\n" "$RESULT"
+fi
+rm -rf "$C16DIR"
+
+# T-C16-1c: with neither field set, falls through to mtime (regression)
+C16DIR=$(mktemp -d)
+mkdir -p "$C16DIR/.pas/workspace/proc/inst-noid/feedback"
+cat > "$C16DIR/.pas/workspace/proc/inst-noid/status.yaml" <<'EOF'
+process: proc
+instance: inst-noid
+status: in_progress
+EOF
+RESULT=$(bash -c "source '$HOOKS_DIR/lib/workspace.sh'; find_active_workspace_status '$C16DIR/.pas/workspace' 'nomatch1'")
+if echo "$RESULT" | grep -q "inst-noid/status.yaml"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C16-1c: falls through to Pass 1 when no field matches\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C16-1c: Pass 1 fallback failed (got: $RESULT)")
+  printf "  ${RED}FAIL${RESET} C16-1c (got: %s)\n" "$RESULT"
+fi
+rm -rf "$C16DIR"
+
+# T-C16-2a: route-feedback warnings.log anchors to PAS_PROJECT_ROOT, not CWD
+# When CWD is under .pas/workspace/<X>/, the old code created
+# .pas/workspace/<X>/.pas/feedback/warnings.log (recursive). New code uses
+# PAS_PROJECT_ROOT.
+C16DIR=$(mktemp -d)
+mkdir -p "$C16DIR/.pas/workspace/proc/inst-cwd/feedback"
+mkdir -p "$C16DIR/.pas/processes/proc/feedback/backlog"
+cat > "$C16DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C16DIR/.pas/workspace/proc/inst-cwd/status.yaml" <<'EOF'
+process: proc
+instance: inst-cwd
+status: in_progress
+current_session: cwdtest1
+EOF
+# Write a feedback file with an UNKNOWN target so we trigger the warnings.log path
+cat > "$C16DIR/.pas/workspace/proc/inst-cwd/feedback/orchestrator-cwdtest1.md" <<'EOF'
+[OQI-99]
+Target: bogus:nothing
+Degraded: warnings-log smoke test
+Priority: LOW
+EOF
+# Run hook with CWD set to PROJECT ROOT (this is what Claude Code passes); the
+# bug manifested because route-feedback used $CWD literally even when guards
+# resolved PAS_PROJECT_ROOT correctly.
+echo "{\"cwd\":\"$C16DIR\",\"session_id\":\"cwdtest1xyz\"}" | bash "$HOOKS_DIR/route-feedback.sh" >/dev/null 2>&1 || true
+if [ -f "$C16DIR/.pas/feedback/warnings.log" ] && [ ! -d "$C16DIR/.pas/workspace/proc/inst-cwd/.pas" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C16-2a: warnings.log anchors to PAS_PROJECT_ROOT (#156)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C16-2a: warnings.log not at expected path or recursive .pas/.pas/ created")
+  printf "  ${RED}FAIL${RESET} C16-2a — log: $(ls $C16DIR/.pas/feedback/ 2>&1 | head -3) ; recursive: $(find $C16DIR -name '.pas' -type d 2>/dev/null | wc -l)\n"
+fi
+rm -rf "$C16DIR"
+
+# T-C16-2b: Tier 3 process resolution uses PAS_PROJECT_ROOT (#156 issue 3)
+C16DIR=$(mktemp -d)
+mkdir -p "$C16DIR/.pas/workspace/proc/inst-tier3/feedback"
+mkdir -p "$C16DIR/.pas/processes/local-process/feedback/backlog"
+cat > "$C16DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C16DIR/.pas/workspace/proc/inst-tier3/status.yaml" <<'EOF'
+process: proc
+instance: inst-tier3
+status: in_progress
+current_session: tier3xyz
+EOF
+cat > "$C16DIR/.pas/workspace/proc/inst-tier3/feedback/orchestrator-tier3xyz.md" <<'EOF'
+[OQI-77]
+Target: process:local-process
+Degraded: tier3 smoke test
+Priority: LOW
+EOF
+echo "{\"cwd\":\"$C16DIR\",\"session_id\":\"tier3xyzfull\"}" | bash "$HOOKS_DIR/route-feedback.sh" >/dev/null 2>&1 || true
+ROUTED=$(find "$C16DIR/.pas/processes/local-process/feedback/backlog" -type f 2>/dev/null | head -1)
+if [ -n "$ROUTED" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C16-2b: Tier 3 anchors to PAS_PROJECT_ROOT (#156)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C16-2b: Tier 3 routing did not land in backlog")
+  printf "  ${RED}FAIL${RESET} C16-2b: signal not routed to local process backlog\n"
+fi
+rm -rf "$C16DIR"
+
+# T-C16-3: SessionStart with two in_progress workspaces + fresh id leaves
+# both untouched (no auto-bind). Belt-and-suspenders for #173.
+C16DIR=$(mktemp -d)
+mkdir -p "$C16DIR/.pas/workspace/proc/A/feedback"
+mkdir -p "$C16DIR/.pas/workspace/proc/B/feedback"
+cat > "$C16DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C16DIR/.pas/workspace/proc/A/status.yaml" <<'EOF'
+process: proc
+instance: A
+status: in_progress
+
+phases:
+  discovery:
+    status: pending
+EOF
+cat > "$C16DIR/.pas/workspace/proc/B/status.yaml" <<'EOF'
+process: proc
+instance: B
+status: in_progress
+
+phases:
+  discovery:
+    status: pending
+EOF
+sleep 0.05
+touch "$C16DIR/.pas/workspace/proc/B/status.yaml"  # B is mtime winner
+A_BEFORE=$(stat -c %s "$C16DIR/.pas/workspace/proc/A/status.yaml")
+B_BEFORE=$(stat -c %s "$C16DIR/.pas/workspace/proc/B/status.yaml")
+echo "{\"cwd\":\"$C16DIR\",\"source\":\"startup\",\"session_id\":\"freshid1abcdef\"}" | bash "$HOOKS_DIR/pas-session-start.sh" >/dev/null 2>&1 || true
+A_AFTER=$(stat -c %s "$C16DIR/.pas/workspace/proc/A/status.yaml")
+B_AFTER=$(stat -c %s "$C16DIR/.pas/workspace/proc/B/status.yaml")
+if [ "$A_BEFORE" = "$A_AFTER" ] && [ "$B_BEFORE" = "$B_AFTER" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C16-3: fresh session leaves both in_progress workspaces untouched (#173)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C16-3: fresh session modified status.yaml (A: $A_BEFORE→$A_AFTER, B: $B_BEFORE→$B_AFTER)")
+  printf "  ${RED}FAIL${RESET} C16-3: fresh session modified workspace (A: %s→%s, B: %s→%s)\n" "$A_BEFORE" "$A_AFTER" "$B_BEFORE" "$B_AFTER"
+fi
+rm -rf "$C16DIR"
+
+# T-C16-5a: Stop hook with binding match → gate fires normally (regression)
+C16DIR=$(mktemp -d)
+mkdir -p "$C16DIR/.pas/workspace/proc/inst-bound/feedback"
+cat > "$C16DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+cat > "$C16DIR/.pas/workspace/proc/inst-bound/status.yaml" <<'EOF'
+process: proc
+instance: inst-bound
+status: in_progress
+current_session: bound123
+
+phases:
+  discovery:
+    status: completed
+EOF
+OUT=$(echo "{\"cwd\":\"$C16DIR\",\"stop_hook_active\":false,\"session_id\":\"bound123fullid\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" 2>&1 || true)
+RC=$?
+EXIT=$(echo "{\"cwd\":\"$C16DIR\",\"stop_hook_active\":false,\"session_id\":\"bound123fullid\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" >/dev/null 2>&1; echo $?)
+if [ "$EXIT" = "2" ]; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C16-5a: gate fires normally when session matches binding\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C16-5a: expected exit 2 when bound and feedback missing, got $EXIT")
+  printf "  ${RED}FAIL${RESET} C16-5a (exit: %s)\n" "$EXIT"
+fi
+rm -rf "$C16DIR"
+
+# T-C16-5b: Stop hook with session_id NOT matching resolved workspace
+# (mtime-fallback misroute scenario) → exit 0 with stderr warning, do not block.
+C16DIR=$(mktemp -d)
+mkdir -p "$C16DIR/.pas/workspace/proc/inst-other/feedback"
+cat > "$C16DIR/.pas/config.yaml" <<'EOF'
+feedback: enabled
+EOF
+# Workspace is in_progress and bound to a DIFFERENT session.
+cat > "$C16DIR/.pas/workspace/proc/inst-other/status.yaml" <<'EOF'
+process: proc
+instance: inst-other
+status: in_progress
+current_session: other999
+
+phases:
+  discovery:
+    status: completed
+EOF
+OUT=$(echo "{\"cwd\":\"$C16DIR\",\"stop_hook_active\":false,\"session_id\":\"mineabc1xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" 2>&1)
+EXIT=$(echo "{\"cwd\":\"$C16DIR\",\"stop_hook_active\":false,\"session_id\":\"mineabc1xyz\"}" | bash "$HOOKS_DIR/verify-completion-gate.sh" >/dev/null 2>&1; echo $?)
+if [ "$EXIT" = "0" ] && echo "$OUT" | grep -q "does not bind session mineabc1"; then
+  PASS=$((PASS + 1))
+  printf "  ${GREEN}PASS${RESET} C16-5b: cross-session misroute warns and skips gate (#162, #160)\n"
+else
+  FAIL=$((FAIL + 1))
+  ERRORS+=("C16-5b: expected exit 0 + warning, got exit $EXIT, out: $OUT")
+  printf "  ${RED}FAIL${RESET} C16-5b (exit: %s)\n" "$EXIT"
+fi
+rm -rf "$C16DIR"
 
 # =========================================================================
 # Summary

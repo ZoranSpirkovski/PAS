@@ -18,11 +18,15 @@ find_active_workspace_status() {
 
   local result=""
 
-  # Pass 0: when a session id is provided, find the workspace whose
-  # current_session matches. Wins over mtime/in_progress passes.
+  # Pass 0: when a session id is provided, find the workspace whose binding
+  # field matches. Matches either `current_session:` (PAS canonical) or
+  # `session_id:` (the natural field name many process docs reach for —
+  # e.g. v2-agency-delivery). Wins over mtime/in_progress passes.
+  # Cross-field matching (#155) closes the multi-worktree mtime-misroute
+  # bug for processes that don't use the canonical field name.
   if [ -n "$session_id" ]; then
     result=$(find "$workspace_dir" -name "status.yaml" -print 2>/dev/null | while read -r f; do
-      if grep -q "^current_session:[[:space:]]*${session_id}\b" "$f" 2>/dev/null; then
+      if grep -qE "^(current_session|session_id):[[:space:]]*${session_id}\b" "$f" 2>/dev/null; then
         echo "$f"
         break
       fi

@@ -8,22 +8,23 @@ Evolve PAS into the de-facto best way to build agentic workflows in Claude Code.
 
 Every item must pass: **"Does this make PAS better for the owner's actual workflows?"** External positioning follows product quality, not the other way around. PAS has one active user. Features like a process marketplace matter only if there are processes worth sharing. Focus on making pas-development excellent first -- that validates every architectural change against real usage.
 
-## Current State (as of Cycle 9)
+## Current State (as of Cycle 12)
 
-- Plugin version: 1.3.0
-- 9 bash scripts (~1100 lines), zero automated tests
-- 4 orchestration patterns with ~300 duplicated lines across 578 total
-- Library copy-on-bootstrap model causes guaranteed drift (real bugs in cycles 6-7)
-- Agent spawn timing race unfixed for 3 cycles
-- All 29 feedback signals target process quality; zero target product quality
-- 10 DX friction points identified (4 critical), 0 addressed before this cycle
+- Plugin version: 1.3.1
+- 10 bash scripts (~1850 lines), 45-test automated hook harness
+- 4 orchestration patterns at 345 lines total (lifecycle extracted, zero duplication)
+- Library dedup implemented: new processes reference `${CLAUDE_PLUGIN_ROOT}/library/` directly
+- Agent spawn timing race fixed (ready-handshake protocol in lifecycle.md)
+- Signal schema formalized, feedback enforcement via hooks
+- DX quick wins addressed, README with end-to-end walkthrough
+- Version auto-bump integrated into release workflow
 - No subprocess invocation, no process portability, no runtime status tooling
 
 ---
 
 ## Milestone 1: Foundation & Quick Wins (Month 1-2)
 
-**Status:** In progress (Cycle 9)
+**Status:** Complete (Cycles 9-10)
 
 ### Items
 - Fix DX quick wins: PPU acronym inconsistency, define "slug", filesystem warning, remove "crystal clarity" jargon
@@ -51,7 +52,7 @@ All success criteria verified by QA engineer. Orchestration patterns are maintai
 
 ## Milestone 2: Reliability & Library Dedup (Month 2-3)
 
-**Status:** Not started
+**Status:** Complete (Cycles 10-12)
 
 ### Items
 - Library dedup implementation: processes reference plugin library directly, project-level override mechanism
@@ -143,12 +144,13 @@ Each milestone maps to 2-4 development cycles. The orchestrator updates mileston
 
 | Milestone | Status | Cycles |
 |-----------|--------|--------|
-| 1. Foundation & Quick Wins | In progress | Cycle 9+ |
-| 2. Reliability & Library Dedup | Not started | -- |
+| 1. Foundation & Quick Wins | Complete | Cycles 9-10 |
+| 2. Reliability & Library Dedup | Complete | Cycles 10-12 |
 | 3. Capability Expansion | Not started | -- |
 | 4. Process Portability | Not started | -- |
 | 5. Polish & Positioning | Not started | -- |
 
 ## Revision History
 
+- 2026-03-10: Milestones 1-2 marked complete. Current state updated to cycle 12.
 - 2026-03-08: Initial roadmap from cycle 9 discovery. Source: `workspace/pas-development/cycle-9/discovery/priorities.md`

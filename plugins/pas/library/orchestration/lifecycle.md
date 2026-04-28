@@ -23,6 +23,35 @@ Write `.pas/workspace/{process}/{slug}/status.yaml` with all phases as `pending`
 
 **If status.yaml already exists**: this is a resumed session. Read it and resume from the last completed phase (see Resumability below). Do not re-create the workspace.
 
+### Session Binding Contract
+
+When a skill or process **creates** or **claims** a workspace, it MUST write the session binding into status.yaml itself. The SessionStart hook will NOT auto-bind a fresh session to an existing in-progress workspace (would cause cross-worktree clobbering — see issue #173).
+
+The binding consists of two writes to the workspace's status.yaml:
+
+```yaml
+current_session: {first 8 chars of session_id}
+
+sessions:
+  - id: {first 8 chars of session_id}
+    started_at: {ISO timestamp}
+    completed_at: ~
+    feedback_collected: false
+```
+
+The PAS resolver (`lib/workspace.sh::find_active_workspace_status`) accepts either `current_session:` or `session_id:` as the binding field — pick the one that fits your status.yaml schema and stay consistent.
+
+**Reconnect behavior:** if a session id is already present in the `sessions:` list, the SessionStart hook treats this as a true reconnect and refreshes `current_session:` automatically. No skill action required.
+
+**Workspace mismatch signal:** when a fresh, unbound session lands while an in-progress workspace exists, the SessionStart hook emits two parseable lines for downstream skills to gate on:
+
+```
+PAS_WORKSPACE_MISMATCH={instance-slug}
+PAS_WORKSPACE_MISMATCH_PATH={absolute-workspace-path}
+```
+
+Skills that orchestrate worktrees should grep for `PAS_WORKSPACE_MISMATCH=` in the SessionStart output and surface a resume/skip/abort choice to the user before reading any other disk state.
+
 ## Lifecycle Task Creation
 
 Create lifecycle tasks using TaskCreate immediately after workspace creation. These tasks make work visible and are enforced by the `verify-task-completion.sh` hook.
