@@ -108,7 +108,7 @@ For process rows, `Read` and `Skills` are typically empty — the process declar
 
 ## 7. Process recipes
 
-A process lives at `library/processes/<name>/SKILL.md` (plugin) or `.claude/skills/<name>/SKILL.md` (user). Frontmatter declares dependencies:
+A process lives at `plugins/pas-clief/skills/<name>/SKILL.md` (plugin) or `.claude/skills/<name>/SKILL.md` (user) — both paths Claude Code's skill discovery scans, which is why processes are slash-invokable. The library at `library/processes/` does NOT exist; the library holds only `agents/` and `skills/` (the components processes compose). Frontmatter declares dependencies:
 
 ```yaml
 ---
@@ -183,7 +183,7 @@ Routing-table rows can be marked `session-required` to indicate the C path is ap
 A sub-process is "an agent whose job is to run another process." Mechanism is identical to spawning an agent — the difference is only the bootstrap prompt:
 
 - Agent spawn: *"Your role is defined in `library/agents/writer/CLAUDE.md`. Read it and do the task."*
-- Sub-process spawn: *"You are running the process at `library/processes/fact-check/SKILL.md`. Read the recipe, execute its phases as a sub-process, and report back when done."*
+- Sub-process spawn: *"You are running the process at `plugins/pas-clief/skills/fact-check/SKILL.md` (or local `.claude/skills/fact-check/SKILL.md`). Read the recipe, execute its phases as a sub-process, and report back when done."*
 
 Same `Agent` tool, same path resolution, same return mechanism. Frontmatter declares `sub_processes:` alongside `agents:`. Nested orchestration falls out for free.
 

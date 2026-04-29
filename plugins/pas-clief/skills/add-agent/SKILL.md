@@ -42,7 +42,7 @@ Ask:
 Create directory: `library/agents/<name>/`
 Read template `plugins/pas-clief/templates/agent-claude-md.md` and substitute placeholders. Write to `library/agents/<name>/CLAUDE.md`.
 Read template `plugins/pas-clief/templates/agent-context-md.md` and substitute placeholders. Write to `library/agents/<name>/CONTEXT.md`.
-Read template `plugins/pas-clief/templates/changelog-md.md` and write to `library/agents/<name>/changelog.md` with an initial entry: `## 2026-04-29\n\n- Created agent.`
+Read template `plugins/pas-clief/templates/changelog-md.md` and write to `library/agents/<name>/changelog.md` with an initial entry. Use today's date (`YYYY-MM-DD`) as the version heading, and `- Created agent.` as the change line.
 Create directory: `library/agents/<name>/feedback/` (empty).
 
 ### 6. Close
