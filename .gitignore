@@ -1,4 +1,3 @@
-feedback/warnings.log
 *.routed
 
 # Secrets, credentials, local env (preventative — repo is clean today)
@@ -23,3 +22,5 @@ id_ed25519.*
 .ssh/
 secrets.*
 credentials.*
+
+/.pas/feedback
