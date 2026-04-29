@@ -1,0 +1,11 @@
+{
+  "name": "pas-clief",
+  "description": "Script-free implementation of the PAS pattern (process / agent / skill) using Jake Van Clief's folder-as-workspace method. Personal workspace, no marketplace, no hooks, no enforcement — pure markdown discipline.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Zoran Spirkovski"
+  },
+  "homepage": "https://github.com/ZoranSpirkovski/PAS",
+  "repository": "https://github.com/ZoranSpirkovski/PAS",
+  "license": "MIT"
+}
