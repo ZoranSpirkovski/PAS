@@ -26,6 +26,26 @@
         "automation"
       ],
       "category": "productivity"
+    },
+    {
+      "name": "pas-clief",
+      "source": "./plugins/pas-clief",
+      "description": "Script-free implementation of the PAS pattern using Jake Van Clief's folder-as-workspace method. Personal workspace, pure markdown, no hooks. Sibling to pas.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Zoran Spirkovski"
+      },
+      "license": "MIT",
+      "keywords": [
+        "framework",
+        "agents",
+        "skills",
+        "processes",
+        "workflow",
+        "markdown",
+        "folder-as-workspace"
+      ],
+      "category": "productivity"
     }
   ]
 }
